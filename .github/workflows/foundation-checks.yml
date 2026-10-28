@@ -1,0 +1,27 @@
+name: Foundation checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify initial design documents
+        run: |
+          test -s README.md
+          test -s docs/ARCHITECTURE_V1.md
+          test -s docs/DATA_SOURCES.md
+          test -s docs/RELEASES.md
+      - name: Verify release workflow is not auto-enabled
+        run: |
+          if test -e .github/workflows/publish-files.yml; then
+            echo 'A publish workflow has been added; review its trigger and secret handling before merging.'
+          fi
+
