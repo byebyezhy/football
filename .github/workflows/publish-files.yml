@@ -1,0 +1,112 @@
+name: Build and optionally publish football release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Immutable source release version, e.g. v0.1.0'
+        required: true
+        default: v0.1.0
+        type: string
+      channel:
+        description: 'Channel pointer to update only after HTTPS verification'
+        required: true
+        default: test
+        type: choice
+        options: [test, stable]
+      operation:
+        description: 'Build only, create a new immutable release, or point a channel at an existing release'
+        required: true
+        default: build-only
+        type: choice
+        options: [build-only, publish-new, promote-existing]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: football-files-release
+  cancel-in-progress: false
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check ref and semantic version
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_CHANNEL: ${{ inputs.channel }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          if [[ "$RELEASE_CHANNEL" == stable ]]; then
+            [[ "$GITHUB_REF" == "refs/tags/$RELEASE_VERSION" ]]
+          else
+            [[ "$GITHUB_REF" == refs/heads/main || "$GITHUB_REF" == "refs/tags/$RELEASE_VERSION" ]]
+          fi
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run offline tests
+        run: PYTHONPATH=src python -m unittest discover -s tests -v
+      - name: Build allow-listed source archive
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          python -m scripts.build_release --version "$RELEASE_VERSION" --commit "$GITHUB_SHA"
+          cd dist
+          sha256sum -c SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: football-${{ inputs.version }}
+          path: |
+            dist/*.tar.gz
+            dist/SHA256SUMS
+            dist/release.json
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    if: ${{ inputs.operation != 'build-only' }}
+    needs: package
+    runs-on: ubuntu-latest
+    environment:
+      name: football-files
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          name: football-${{ inputs.version }}
+          path: dist
+      - name: Write credentials with verified host key
+        shell: bash
+        env:
+          FILES_SSH_KEY: ${{ secrets.FILES_SSH_KEY }}
+          FILES_KNOWN_HOSTS: ${{ secrets.FILES_KNOWN_HOSTS }}
+          FILES_SSH_USER: ${{ secrets.FILES_SSH_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$FILES_SSH_KEY" && test -n "$FILES_KNOWN_HOSTS" && test -n "$FILES_SSH_USER"
+          umask 077
+          printf '%s\n' "$FILES_SSH_KEY" > "$RUNNER_TEMP/football-files-key"
+          printf '%s\n' "$FILES_KNOWN_HOSTS" > "$RUNNER_TEMP/football-files-known-hosts"
+          chmod 600 "$RUNNER_TEMP/football-files-key" "$RUNNER_TEMP/football-files-known-hosts"
+      - name: Upload, verify public SHA256, and activate channel
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_CHANNEL: ${{ inputs.channel }}
+          RELEASE_OPERATION: ${{ inputs.operation }}
+          FILES_SSH_USER: ${{ secrets.FILES_SSH_USER }}
+        run: |
+          python -m scripts.publish_files \
+            --dist dist --version "$RELEASE_VERSION" --channel "$RELEASE_CHANNEL" \
+            --operation "$RELEASE_OPERATION" \
+            --ref "$GITHUB_REF" \
+            --key-file "$RUNNER_TEMP/football-files-key" \
+            --known-hosts "$RUNNER_TEMP/football-files-known-hosts"
