@@ -23,6 +23,7 @@
 - `src/football_predictor/models/`：Penaltyblog Poisson / Dixon–Coles 模型适配器。
 - `src/football_predictor/domain.py`：与外部库无关的输入/输出数据契约。
 - `tests/`：不依赖外网、模拟第三方接口的离线契约测试。
+- `src/football_predictor/backtest.py`：按比赛日期分组、严格使用此前赛果的 walk-forward 回测。
 
 运行离线测试（无需抓取网站或安装模型依赖）：
 
@@ -42,6 +43,18 @@ python3 -m pip install -e '.[all]'
 football source-preview --league 'ENG-Premier League' --season '2024-25' --as-of 2026-10-28
 ```
 
+读取并导出历史赛果，再生成逐场回测报告（两个命令都需要先安装可选依赖；第一个命令需要访问数据网站）：
+
+```bash
+football fetch-results --league 'ENG-Premier League' --season '2024-25' \
+  --as-of 2026-10-28 --output data/raw/epl-2024-25.csv
+
+football backtest-csv --csv data/raw/epl-2024-25.csv \
+  --model dixon_coles --min-training 100 --output reports/epl-2024-25.json
+```
+
+注意：CSV 写入采用“文件必须不存在”规则，防止误覆盖；回测只隔离同日赛果，赔率、阵容、xG 等外部赛前特征仍需独立的发布时间快照机制。
+
 用内部标准格式的 CSV 离线拟合模型并预测指定球队：
 
 ```bash
@@ -49,7 +62,7 @@ football predict-csv --csv matches.csv --home Arsenal --away Chelsea --as-of 202
 ```
 
 CSV 列：`competition,season,date,home_team,away_team,home_goals,away_goals`，可选 `source_id`。
-当前还没有完整的历史数据仓库、自动回测或在线 API；不会声称预测结果已验证。
+当前已有自动执行的离线回测程序，但还没有在线 API 或经过真实足球数据集评估的预测指标。
 
 ## 开发与发布约定
 
