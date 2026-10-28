@@ -15,6 +15,41 @@
 - [技术架构与阶段验收](docs/ARCHITECTURE_V1.md)
 - [数据源插件接口规范](docs/DATA_SOURCES.md)
 - [GitHub 与 files 文件服务器发布约定](docs/RELEASES.md)
+- [当前实现与下一阶段任务](docs/IMPLEMENTATION_STATUS.md)
+
+## 代码骨架（V1.0 开发中）
+
+- `src/football_predictor/sources/`：能力注册表和 Soccerdata 历史结果适配器。
+- `src/football_predictor/models/`：Penaltyblog Poisson / Dixon–Coles 模型适配器。
+- `src/football_predictor/domain.py`：与外部库无关的输入/输出数据契约。
+- `tests/`：不依赖外网、模拟第三方接口的离线契约测试。
+
+运行离线测试（无需抓取网站或安装模型依赖）：
+
+```bash
+PYTHONPATH=src python3 -m unittest discover -s tests -v
+```
+
+安装所需组件（开发机器具备访问软件包源的条件时）：
+
+```bash
+python3 -m pip install -e '.[all]'
+```
+
+试读英超历史赛果（将访问第三方数据源，遵守其使用条款）：
+
+```bash
+football source-preview --league 'ENG-Premier League' --season '2024-25' --as-of 2026-10-28
+```
+
+用内部标准格式的 CSV 离线拟合模型并预测指定球队：
+
+```bash
+football predict-csv --csv matches.csv --home Arsenal --away Chelsea --as-of 2025-08-01
+```
+
+CSV 列：`competition,season,date,home_team,away_team,home_goals,away_goals`，可选 `source_id`。
+当前还没有完整的历史数据仓库、自动回测或在线 API；不会声称预测结果已验证。
 
 ## 开发与发布约定
 
@@ -24,4 +59,4 @@
 - 不向发行服务器上传数据库、凭据、`.env`、密钥或其他私有数据。
 - 公开文件发布流程在部署参数确认前不启用。
 
-> 项目状态：V1 架构设计中，尚未部署或进行准确率验证。
+> 项目状态：V1.0 代码骨架阶段，尚未部署或完成真实数据集上的准确率验证。

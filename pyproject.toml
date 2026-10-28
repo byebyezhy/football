@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "football-predictor"
+version = "0.1.0.dev0"
+description = "Extensible football score probability prediction platform"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{name = "Football project contributors"}]
+dependencies = []
+
+[project.optional-dependencies]
+data = ["soccerdata>=1.9"]
+model = ["penaltyblog", "pandas"]
+all = ["soccerdata>=1.9", "penaltyblog", "pandas"]
+
+[project.scripts]
+football = "football_predictor.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
