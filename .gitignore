@@ -20,6 +20,7 @@ build/
 # Local model/data artifacts
 data/raw/
 data/cache/
+reports/
 models/artifacts/
 *.sqlite
 *.sqlite3
