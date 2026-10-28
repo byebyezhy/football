@@ -67,9 +67,9 @@ CSV 列：`competition,season,date,home_team,away_team,home_goals,away_goals`，
 ## 开发与发布约定
 
 - `main` 为审核合并后的主分支。后续功能通过 feature 分支、Pull Request、人工审核合并。
-- GitHub Actions 负责检查、构建和发布工件。
+- GitHub Actions 负责检查、构建和发布工件；新增人工触发的 `publish-files.yml`，默认仅构建，可在凭据/环境配置完成后手动上传。
 - `files.shenqianqian.com` 仅用于存储公开发行文件；不作为预测 API、采集任务或数据库的运行服务器。
 - 不向发行服务器上传数据库、凭据、`.env`、密钥或其他私有数据。
-- 公开文件发布流程在部署参数确认前不启用。
+- 发布版本可在 `test` 与 `stable` 渠道间进行经过哈希校验的手动切换；首次上传前仍需配置 `football-files` 环境和文件服务器 SSH 权限，详见 [发布操作指南](docs/RELEASES.md)。
 
 > 项目状态：V1.0 代码骨架阶段，尚未部署或完成真实数据集上的准确率验证。
