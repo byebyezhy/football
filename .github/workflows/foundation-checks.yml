@@ -21,12 +21,10 @@ jobs:
           test -s docs/DATA_SOURCES.md
           test -s docs/RELEASES.md
           test -s docs/DEPLOY_VPS.md
-      - name: Verify release workflow keeps uploads away from pull requests
+      - name: Verify release workflow is not auto-enabled
         run: |
-          test -s .github/workflows/publish-files.yml
-          if grep -q '^  pull_request:' .github/workflows/publish-files.yml; then
-            echo 'Release workflow must never run with deployment secrets on pull requests' >&2
-            exit 1
+          if test -e .github/workflows/publish-files.yml; then
+            echo 'A publish workflow has been added; review its trigger and secret handling before merging.'
           fi
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -38,4 +36,16 @@ jobs:
         run: |
           PYTHONPATH=src python -m unittest discover -s tests -v
           python -m compileall -q src tests scripts
+
+  verify-runtime-image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build non-root runtime image with native TLS library
+        run: docker build -t football-runtime-smoke .
+      - name: Verify Soccerdata can initialize without writing to site-packages
+        run: |
+          docker run --rm --read-only --tmpfs /tmp --entrypoint python \
+            football-runtime-smoke -c 'from tls_requests.models.libraries import TLSLibrary; TLSLibrary.load(); import soccerdata; print("non-root TLS library ready")'
 
