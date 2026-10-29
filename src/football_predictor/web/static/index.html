@@ -65,13 +65,87 @@
   const pct = number => (number * 100).toFixed(1) + '%';
   const message = text => { $('message').textContent = text; };
   const localToday = () => { const d=new Date(); return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-'); };
+  let currentTeamNamesZh = {};
   $('as-of').value = localToday();
   async function request(url){ const response=await fetch(url,{headers:{Accept:'application/json'}}); const data=await response.json(); if(!response.ok)throw new Error(data.detail || '服务暂不可用'); return data; }
-  function fill(id,values){ const select=$(id); select.replaceChildren(); const placeholder=document.createElement('option'); placeholder.value='';placeholder.textContent=values.length?'请选择':'暂无可用数据'; select.append(placeholder); for(const value of values){const option=document.createElement('option');option.value=value;option.textContent=value;select.append(option);} select.disabled=!values.length; }
-  async function loadTeams(){ fill('home',[]);fill('away',[]);$('run').disabled=true; const comp=$('competition').value;if(!comp)return;try{const data=await request('/api/teams?competition='+encodeURIComponent(comp));fill('home',data.teams);fill('away',data.teams);$('run').disabled=data.teams.length<2;}catch(error){message(error.message);} }
-  async function bootstrap(){try{const [status,competitions]=await Promise.all([request('/api/status'),request('/api/competitions')]);$('connection').textContent='● 数据服务已连接';$('match-count').textContent=status.matches.toLocaleString();$('latest-date').textContent=status.latest_match_date||'暂无';fill('competition',competitions.competitions);if(!competitions.competitions.length)message('当前尚无历史赛果，请先使用管理员 CLI 导入数据。');}catch(error){$('connection').textContent='数据服务未就绪';message(error.message);} }
+  function displayName(value, labels){
+    const translated = labels[value];
+    return translated && translated !== value ? translated + '（' + value + '）' : value;
+  }
+  function fill(id, values, labels = {}){
+    const select = $(id);
+    select.replaceChildren();
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = values.length ? '请选择' : '暂无可用数据';
+    select.append(placeholder);
+    // Sorting by visible Chinese labels makes the selector easier to scan.
+    const ordered = id === 'home' || id === 'away'
+      ? [...values].sort((a,b) => (labels[a] || a).localeCompare(labels[b] || b, 'zh-CN'))
+      : values;
+    for(const value of ordered){
+      const option = document.createElement('option');
+      option.value = value; // Keep the original source ID for prediction queries.
+      option.textContent = displayName(value, labels);
+      select.append(option);
+    }
+    select.disabled = !values.length;
+  }
+  async function loadTeams(){
+    currentTeamNamesZh = {};
+    fill('home',[]); fill('away',[]); $('run').disabled=true;
+    const comp=$('competition').value;
+    if(!comp)return;
+    try{
+      const data=await request('/api/teams?competition='+encodeURIComponent(comp));
+      if(comp !== $('competition').value)return;
+      currentTeamNamesZh = data.team_names_zh || {};
+      fill('home',data.teams,currentTeamNamesZh);
+      fill('away',data.teams,currentTeamNamesZh);
+      $('run').disabled=data.teams.length<2;
+    }catch(error){message(error.message);}
+  }
+  async function bootstrap(){
+    try{
+      const [status,competitions]=await Promise.all([request('/api/status'),request('/api/competitions')]);
+      $('connection').textContent='● 数据服务已连接';
+      $('match-count').textContent=status.matches.toLocaleString();
+      $('latest-date').textContent=status.latest_match_date||'暂无';
+      fill('competition',competitions.competitions,competitions.competition_names_zh || {});
+      if(!competitions.competitions.length)message('当前尚无历史赛果，请先使用管理员 CLI 导入数据。');
+    }catch(error){$('connection').textContent='数据服务未就绪';message(error.message);}
+  }
   $('competition').addEventListener('change',loadTeams);
-  $('forecast-form').addEventListener('submit',async event=>{event.preventDefault();const home=$('home').value,away=$('away').value;if(!home||!away||home===away){message('请选择不同的主客球队');return;}const params=new URLSearchParams({competition:$('competition').value,home,away,as_of:$('as-of').value,model:$('model').value});$('run').disabled=true;message('正在拟合模型，首次计算可能需要一些时间…');try{const data=await request('/api/predict?'+params);$('empty').style.display='none';$('result').style.display='block';$('match-home').textContent=data.home_team;$('match-away').textContent=data.away_team;$('p-home').textContent=pct(data.home_win);$('p-draw').textContent=pct(data.draw);$('p-away').textContent=pct(data.away_win);const scores=$('top-scores');scores.replaceChildren();for(const row of data.top_scores){const item=document.createElement('div');item.className='score-item';const score=document.createElement('span');score.className='score-num';score.textContent=row.score;const bar=document.createElement('div');bar.className='bar';const inner=document.createElement('span');inner.style.width=Math.min(100,row.probability*100*4)+'%';bar.append(inner);const percent=document.createElement('span');percent.className='score-pct';percent.textContent=pct(row.probability);item.append(score,bar,percent);scores.append(item);} $('model-detail').textContent='模型：'+data.model+' · 训练赛果：'+data.training_matches+' 场 · 截止日期：'+data.as_of;message(data.warning);}catch(error){message(error.message);}finally{$('run').disabled=false;}});
+  $('forecast-form').addEventListener('submit',async event=>{
+    event.preventDefault();
+    const home=$('home').value,away=$('away').value;
+    if(!home||!away||home===away){message('请选择不同的主客球队');return;}
+    const params=new URLSearchParams({competition:$('competition').value,home,away,as_of:$('as-of').value,model:$('model').value});
+    $('run').disabled=true;
+    message('正在拟合模型，首次计算可能需要一些时间…');
+    try{
+      const data=await request('/api/predict?'+params);
+      $('empty').style.display='none';$('result').style.display='block';
+      $('match-home').textContent=currentTeamNamesZh[data.home_team] || data.home_team;
+      $('match-away').textContent=currentTeamNamesZh[data.away_team] || data.away_team;
+      $('match-home').title=data.home_team;
+      $('match-away').title=data.away_team;
+      $('p-home').textContent=pct(data.home_win);
+      $('p-draw').textContent=pct(data.draw);
+      $('p-away').textContent=pct(data.away_win);
+      const scores=$('top-scores');scores.replaceChildren();
+      for(const row of data.top_scores){
+        const item=document.createElement('div');item.className='score-item';
+        const score=document.createElement('span');score.className='score-num';score.textContent=row.score;
+        const bar=document.createElement('div');bar.className='bar';
+        const inner=document.createElement('span');inner.style.width=Math.min(100,row.probability*100*4)+'%';bar.append(inner);
+        const percent=document.createElement('span');percent.className='score-pct';percent.textContent=pct(row.probability);
+        item.append(score,bar,percent);scores.append(item);
+      }
+      $('model-detail').textContent='模型：'+data.model+' · 训练赛果：'+data.training_matches+' 场 · 截止日期：'+data.as_of;
+      message(data.warning || '');
+    }catch(error){message(error.message);}finally{$('run').disabled=false;}
+  });
   bootstrap();
 </script>
 </body>
