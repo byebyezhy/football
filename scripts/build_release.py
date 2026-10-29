@@ -15,7 +15,14 @@ import tarfile
 
 VERSION_PATTERN = re.compile(r"v[0-9]+\.[0-9]+\.[0-9]+\Z")
 COMMIT_PATTERN = re.compile(r"[0-9a-f]{40}\Z")
-ALLOWED_DIRECTORIES = {"src": ".py", "docs": ".md", "tests": ".py"}
+ALLOWED_DIRECTORIES = {
+    "src": (".py", ".html"),
+    "docs": (".md",),
+    "tests": (".py",),
+}
+DEPLOYMENT_FILES = (
+    "Dockerfile", ".dockerignore", "compose.yaml", ".env.example", "deploy/Caddyfile",
+)
 
 
 def validate_version(version: str) -> str:
@@ -27,12 +34,13 @@ def validate_version(version: str) -> str:
 def release_files(root: Path) -> list[Path]:
     """Only approved project files may enter a public release archive."""
     selected = [Path("README.md"), Path("pyproject.toml")]
-    for directory, suffix in ALLOWED_DIRECTORIES.items():
+    selected += [Path(file) for file in DEPLOYMENT_FILES]
+    for directory, suffixes in ALLOWED_DIRECTORIES.items():
         base = root / directory
         if not base.is_dir() or base.is_symlink():
             raise ValueError(f"Missing or unsafe release directory: {directory}")
-        for path in sorted(base.rglob(f"*{suffix}")):
-            if "__pycache__" in path.parts:
+        for path in sorted(base.rglob("*")):
+            if path.suffix not in suffixes or "__pycache__" in path.parts:
                 continue
             selected.append(path.relative_to(root))
 
