@@ -33,6 +33,16 @@ def build_parser() -> argparse.ArgumentParser:
     import_csv = sub.add_parser("import-results", help="Import normalized CSV results into PostgreSQL")
     import_csv.add_argument("--csv", type=Path, required=True)
 
+    sync = sub.add_parser("sync-results", help="Fetch recent seasons and import new results into PostgreSQL")
+    sync.add_argument("--league", default="ENG-Premier League")
+    sync.add_argument("--as-of", type=date.fromisoformat, default=date.today())
+    sync.add_argument("--completed-seasons", type=int, default=5)
+
+    backtest_db = sub.add_parser("backtest-db", help="Evaluate both models against stored results")
+    backtest_db.add_argument("--competition", default="ENG-Premier League")
+    backtest_db.add_argument("--as-of", type=date.fromisoformat, default=date.today())
+    backtest_db.add_argument("--evaluation-dates", type=int, default=48)
+
     predict = sub.add_parser("predict-csv", help="Fit historical CSV data and forecast a fixture")
     predict.add_argument("--csv", type=Path, required=True)
     predict.add_argument("--home", required=True)
@@ -67,6 +77,29 @@ def main(argv: list[str] | None = None) -> int:
         for match in batch.matches[:5]:
             print(f"{match.played_on}: {match.home_team} {match.home_goals}-"
                   f"{match.away_goals} {match.away_team}")
+        return 0
+
+    if args.command in {"sync-results", "backtest-db"}:
+        from football_predictor.storage import PostgresRepository
+        repo = PostgresRepository()
+        repo.ensure_schema()
+        if args.command == "sync-results":
+            from football_predictor.sync_pipeline import sync_competition
+            outcomes = sync_competition(
+                repo, args.league, as_of=args.as_of,
+                now=datetime.now(timezone.utc), completed_seasons=args.completed_seasons,
+            )
+            for entry in outcomes:
+                print(f"{entry.season}: {entry.status}; fetched={entry.fetched}; "
+                      f"imported={entry.inserted}; invalid={entry.invalid}")
+            return 1 if any(entry.status == "error" for entry in outcomes) else 0
+        from football_predictor.backtest_service import evaluate_competition
+        reports = evaluate_competition(repo, args.competition, as_of=args.as_of,
+                                       max_evaluation_dates=args.evaluation_dates)
+        if not reports:
+            print("No historical fixtures qualified for a backtest")
+            return 1
+        print(json.dumps(reports, default=str, ensure_ascii=False, indent=2))
         return 0
 
     matches = read_results_csv(args.csv)
