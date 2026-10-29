@@ -10,7 +10,7 @@
 2. 阅读本文件，以及 `README.md`、`docs/ARCHITECTURE_V1.md`、`docs/DATA_SOURCES.md`、`docs/DEPLOY_VPS.md`；以**当前代码和实际 CI/服务状态**为准，旧文档可能仍写“手工发布”。
 3. 读取 [当前测试发布指针](https://files.shenqianqian.com/football/channels/test.json)，从中确认实际版本、commit、tarball URL、SHA256；不要把本文的历史版本当成最新版本。
 4. 检查 [GitHub Actions](https://github.com/byebyezhy/football/actions) 和最新 PR/commit，确认测试及发布任务真实成功后再推进下一阶段。
-5. 首要待办是**指导用户自行登录 Ubuntu VPS，把 files 源码包部署为 `https://fb.linmeng.ai` 网站，并导入真实历史赛果**；截至本文件创建时，这一步尚无真实服务器验收证据。
+5. 用户已提供 2026-10-29 的网站截图：`fb.linmeng.ai` 页面正常渲染，UI 显示“数据服务已连接”，但历史比赛数为 **0**。后续重点是修复数据源首次加载的本地权限问题、导入真实赛果、验证首场预测；网站截图不等同于所有 HTTPS/API 外部验收均通过。
 6. 默认使用中文与用户交流，主动推进工作。**用户已经明确授权助手直接完成 GitHub 代码提交、创建 PR、检查 CI、合并 PR、触发/重跑构建与 files 测试发布，不要再逐项要求用户去 GitHub 点击。VPS 登录、安装、更新、回滚由用户亲自执行，助手只负责给出经核对的命令和诊断。**
 
 ## 1. 产品目标与不变的架构原则
@@ -98,7 +98,7 @@ files SSH 服务器历史配置是全局 `PubkeyAuthentication no`，`Match User
 
 用户明确允许足球源码发行包**公开下载**。但数据库、`.env`、私钥、凭据、原始第三方数据绝不放在公开目录。
 
-## 5. 运行 VPS 与网站（尚待真实部署）
+## 5. 运行 VPS 与网站（用户已提供上线截图，尚无真实赛果）
 
 | 事项 | 值 / 状态 |
 | --- | --- |
@@ -111,14 +111,14 @@ files SSH 服务器历史配置是全局 `PubkeyAuthentication no`，`Match User
 | 密码 | VPS 上创建本地 `.env`，填写强随机 `POSTGRES_PASSWORD`，**不上传 GitHub/files** |
 | 健康检查 | `https://fb.linmeng.ai/healthz` 和 `/api/status` |
 
-**截至本次更新仍未获得 VPS Docker 真实部署、数据库导入和网站可用性的成功证据。不要把“代码准备好”写成“网站已上线”。** 2026-10-29 用户已将 Cloudflare DNS 改为灰云（DNS only）；公开 DNS A 记录经查为 `45.12.52.34`，但网站 HTTP/HTTPS 检查当时返回 503，须待用户安装并验收。详细手工步骤见 `docs/DEPLOY_VPS.md`，部署时必须从 `test.json` 读取最新版本、URL 和 SHA256，不可长期固定历史版本。
+**2026-10-29 用户已将发布的 v0.2.5 安装到 VPS，并发送网站截图：前端已渲染，页面显示数据服务已连接；历史赛果 0 场。** 用户在 VPS 容器里执行 `football source-preview --league 'ENG-Premier League' --season '2024-25' --as-of 2026-10-29`，报错 `Permission denied: /usr/local/lib/python3.11/site-packages/tls_requests/bin/release.json` 和同目录原生 `.so`：`tls_requests` 在首次运行时需要下载原生库，而 API 容器以无权写 site-packages 的非 root 用户运行。下一步修复方法是在 Docker **构建阶段以 root 身份预加载原生库**，然后以非 root 身份进行加载检查；不要为了临时绕过这个错误将生产容器改成 root。完整的升级/采集步骤见 `docs/DEPLOY_VPS.md`，外部 HTTPS/API 是否持续正常仍应另外验证。
 
 操作上，由用户自己检查 VPS 的 SSH、端口、防火墙、现有服务和磁盘，再动手部署；保留数据库 Docker 命名卷，绝不执行 `docker compose down -v`。所有部署变更要有回滚方式。用户将 `.env` 和原始 CSV 数据保存在 VPS 私有的 `/opt/football/shared/` 中，每个新版本目录复用，不允许发布到 files。
 
 ## 6. 未完成、不得误报为完成的事项
 
-1. **第一优先：指导用户手工部署 VPS。** DNS A 记录已核实；继续指导用户核对 80/443、Docker Compose、下载并校验最新 test 版本、创建受限 `.env`、启动三个容器、验证 HTTPS 与 API。**不要求用户开放 VPS SSH 给助手，不尝试自动远程部署。**
-2. **第二优先：真实足球数据。** 在可合法访问来源的环境中，抓取至少一个联赛的历史结果，导入数据库并验证站点联赛/球队/比分预测功能。不得用伪造数据冒充实测。
+1. **第一优先：修复首次采集的非 root 权限问题并交付新版到 files。** 用户已按旧版 v0.2.5 成功启动网站，但 `source-preview` 因 `tls_requests` 原生库首次运行写权限失败。修复后跑 CI（包括实际容器构建、非 root 只读运行验证），合并发布，再提供用户自行升级 VPS 的命令。**不要求用户开放 VPS SSH 给助手，不尝试自动远程部署。**
+2. **第二优先：真实足球数据。** 在可合法访问来源的环境中，抓取至少一个联赛的历史结果，导入数据库并验证站点联赛/球队/比分预测功能。不得用伪造数据冒充实测。预装的 `soccerdata` 历史适配器还没在新版容器完成成功抓取验证。
 3. **第三优先：可信回测。** 使用多个完整赛季做 walk-forward，公开真实样本量、Brier/log loss/RPS/精确比分命中与简单基线对照，避免时间穿越。
 4. **之后：数据源扩展。** 加 fixtures、xG、赔率等插件、球队 ID 映射、源冲突处理、可审计的采集时间戳、限速缓存、定时任务和错误告警。
 5. **之后：工程增强。** 数据库迁移、历史预测快照、模型版本持久化、依赖锁定、API 鉴权/限流与监控；VPS 部署仍须遵守“用户手工执行”约定。
@@ -140,11 +140,11 @@ files SSH 服务器历史配置是全局 `PubkeyAuthentication no`，`Match User
 
 ## 8. 给新对话的简短状态摘要
 
-**当前已完成：** 数据源插件和 Poisson/Dixon–Coles 预测骨架、CSV 导入/回测、FastAPI 网站代码、PostgreSQL/Caddy Docker 部署包、GitHub 自动 CI/PR 合并流程、GitHub → files 测试版自动发布链路，历史 `v0.2.3` 已成功发布并经公网 SHA256 复核。
+**当前已完成：** 数据源插件和 Poisson/Dixon–Coles 预测骨架、CSV 导入/回测、FastAPI 网站代码、PostgreSQL/Caddy Docker 部署包、GitHub 自动 CI/PR 合并流程、GitHub → files 测试版自动发布链路，`v0.2.5` 已发布、用户 VPS 的网站页面已显示（数据服务连接、0 场历史赛果）。
 
-**当前未完成：** VPS `45.12.52.34` 上的真实部署及 `fb.linmeng.ai` 验收、真实历史数据导入、线上预测、实证精度报告，以及后续扩展采集源/调度/正式版发布。
+**当前未完成：** 修复旧镜像 `tls_requests` 首次下载依赖时的权限问题、独立 HTTPS/API 验收、真实历史数据导入、线上预测、实证精度报告，以及后续扩展采集源/调度/正式版发布。
 
-**现在应做：** 首先核验最新 `main` 与 `channels/test.json`；接着按 `docs/DEPLOY_VPS.md` 向用户提供 VPS 手工部署命令并协助验收，绝不创建 VPS 自动部署工作流。不要让用户再次解释 football / files / GitHub / PR / SSH 的整套背景。
+**现在应做：** 完成 Docker 构建期 TLS 原生库预加载与 CI 只读容器验证，发布新版到 files；然后按 `docs/DEPLOY_VPS.md` 向用户提供 VPS 手工升级和采集/入库命令，绝不创建 VPS 自动部署工作流。不要让用户再次解释 football / files / GitHub / PR / SSH 的整套背景。
 
 ---
 
