@@ -46,6 +46,8 @@ jobs:
         run: docker build -t football-runtime-smoke .
       - name: Verify Soccerdata can initialize without writing to site-packages
         run: |
-          docker run --rm --read-only --tmpfs /tmp --entrypoint python \
+          docker run --rm --read-only --network none --tmpfs /tmp \
+            -e SOCCERDATA_DIR=/tmp/football-soccerdata \
+            -e MPLCONFIGDIR=/tmp/football-matplotlib --entrypoint python \
             football-runtime-smoke -c 'from tls_requests.models.libraries import TLSLibrary; TLSLibrary.load(); import soccerdata; print("non-root TLS library ready")'
 
