@@ -1,5 +1,7 @@
 import unittest
 from datetime import date, datetime, timezone
+from io import BytesIO
+from pathlib import Path
 
 from football_predictor.domain import FetchContext
 from football_predictor.sources.base import RESULTS, XG, SourceRegistry
@@ -19,6 +21,28 @@ class FakeReader:
             {"date": date(2024, 9, 1), "home_team": "A", "away_team": "C",
              "FTHG": 0, "FTAG": 0, "game": "future"},
         ]
+
+
+class BomArchiveReader:
+    _selected_leagues = {"ENG-Premier League": "E0"}
+    data_dir = Path("/tmp/football-test-bom")
+    csv_data = (
+        b"\xef\xbb\xbfDiv,Date,HomeTeam,AwayTeam,FTHG,FTAG\n"
+        b"E0,13/08/2021,Brentford,Arsenal,2,0\n"
+        b"E0,14/08/2021,Man United,Leeds,5,1\n"
+        b"E0,15/08/2021,Leicester,Wolves,,\n"
+    )
+
+    def __init__(self, **kwargs):
+        self.config = kwargs
+        self.requested = None
+
+    def read_games(self):
+        raise KeyError("league")
+
+    def get(self, url, filepath, no_cache=False):
+        self.requested = (url, filepath, no_cache)
+        return BytesIO(self.csv_data)
 
 
 class SourceTests(unittest.TestCase):
@@ -41,6 +65,42 @@ class SourceTests(unittest.TestCase):
                            FetchContext.current("EPL", "2024-25"))
         with self.assertRaises(ValueError):
             registry.register(SoccerdataMatchHistory(reader_factory=FakeReader))
+
+    def test_old_bom_csv_recovers_without_suppressing_invalid_rows(self):
+        reader = BomArchiveReader()
+        adapter = SoccerdataMatchHistory(reader_factory=lambda **kwargs: reader)
+        context = FetchContext("ENG-Premier League", "2021-22",
+                               datetime(2026, 10, 29, tzinfo=timezone.utc))
+        result = adapter.fetch(RESULTS, context)
+        self.assertEqual(len(result.matches), 2)
+        self.assertEqual(result.matches[0].played_on, date(2021, 8, 13))
+        self.assertEqual(result.matches[0].home_team, "Brentford")
+        self.assertEqual(result.matches[0].source, "soccerdata_match_history")
+        self.assertEqual(len(result.warnings), 1)
+        self.assertEqual(
+            reader.requested,
+            ("https://www.football-data.co.uk/mmz4281/2122/E0.csv",
+             Path("/tmp/football-test-bom/E0_2122.csv"), False),
+        )
+
+    def test_recovery_rejects_non_bom_or_unrelated_keyerror(self):
+        context = FetchContext("ENG-Premier League", "2021-22",
+                               datetime(2026, 10, 29, tzinfo=timezone.utc))
+        reader = BomArchiveReader()
+        reader.csv_data = reader.csv_data.removeprefix(b"\xef\xbb\xbf")
+        adapter = SoccerdataMatchHistory(reader_factory=lambda **kwargs: reader)
+        with self.assertRaisesRegex(ValueError, "no UTF-8 BOM"):
+            adapter.fetch(RESULTS, context)
+
+        class MissingDateReader(BomArchiveReader):
+            def read_games(self):
+                raise KeyError("date")
+
+        reader = MissingDateReader()
+        adapter = SoccerdataMatchHistory(reader_factory=lambda **kwargs: reader)
+        with self.assertRaisesRegex(KeyError, "date"):
+            adapter.fetch(RESULTS, context)
+        self.assertIsNone(reader.requested)
 
 
 if __name__ == "__main__":
