@@ -12,8 +12,8 @@
 
 ```text
 /srv/files/public/football/
-  releases/v0.1.0/
-    football-v0.1.0.tar.gz
+  releases/v0.2.0/
+    football-v0.2.0.tar.gz
     SHA256SUMS
     release.json
   channels/
@@ -45,9 +45,9 @@ PR 审核合并后进入 `byebyezhy/football` → **Actions** → **Build and op
 | `publish-new` | 在新的版本目录发布；拒绝覆盖同名版本，验证公网下载哈希后原子更新渠道 | `test` 可用 `main`/tag；`stable` 只能用同名 tag |
 | `promote-existing` | 校验已有 release 的公网元数据、代码 commit 和 tar 哈希，再原子更改渠道指针；支持测试→稳定、回滚 | 与 `publish-new` 一致 |
 
-输入版本如 `v0.1.0`；渠道为 `test` 或 `stable`。**已发布过的相同版本不要选择 `publish-new`**，应改选 `promote-existing`；旧版本的 SHA256 必须和当前选中的 Git ref 构建结果一致。
+输入版本如 `v0.2.0`；渠道为 `test` 或 `stable`。**已发布过的相同版本不要选择 `publish-new`**，应改选 `promote-existing`；旧版本的 SHA256 必须和当前选中的 Git ref 构建结果一致。
 
-构建工件只包含经过白名单筛选的 `README.md`、`pyproject.toml` 和 `src/**/*.py`、`docs/**/*.md`、`tests/**/*.py`。不包含 `.env`、`data/`、模型产物、`.git/`、私钥、CI 凭据或抓取的数据。该 tar.gz 是源码快照，`pyproject.toml` 的 Python 包版本目前仍处于 `0.1.0.dev0`。
+构建工件只包含经过白名单筛选的 `README.md`、`pyproject.toml`、`Dockerfile`、`.dockerignore`、`compose.yaml`、`.env.example`、`deploy/Caddyfile`、`src/**/*.py`、`src/**/*.html`、`docs/**/*.md`、`tests/**/*.py`。不包含真实 `.env`、`data/`、模型产物、`.git/`、私钥、CI 凭据或抓取的数据。该 tar.gz 是可用于 VPS Docker 构建的源码快照，V0.2 阶段 Python 包版本为 `0.2.0.dev0`。
 
 ## 5. GitHub Free 私有仓库的 Secrets 与 SSH 准备（需仓库管理员完成一次）
 
@@ -58,7 +58,7 @@ GitHub Free 的私有仓库不支持 Environment Secrets，也无法在私有库
    - `FILES_SSH_KEY`：该用户的专用 Ed25519 私钥完整内容（对应公钥需配置到文件服务器账号）。
    - `FILES_KNOWN_HOSTS`：经过独立验证的 SSH 主机公钥记录，必须匹配 `[files.shenqianqian.com]:37767`。**不要仅凭未核验的 ssh-keyscan 输出建立信任。**
 2. 在服务器确认 `/srv/files/public/football` 与公网 `https://files.shenqianqian.com/football/` 的实际映射和权限。工作流在 `publish-new` 时可以建立 `releases/`、`channels/` 和 `.staging/` 子目录，但不会修改 Nginx。
-3. 首次运行先选 `build-only` 确认工件，再人工选 `publish-new` + `test`；等公网校验成功后，将同一 commit 打标签 `v0.1.0`，从这个 tag 运行 `promote-existing` + `stable`。
+3. 首次运行先选 `build-only` 确认工件，再人工选 `publish-new` + `test`；等公网校验成功后，将同一 commit 打标签 `v0.2.0`，从这个 tag 运行 `promote-existing` + `stable`。
 
 ### 安全校验与故障处理
 

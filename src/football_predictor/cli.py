@@ -30,6 +30,9 @@ def build_parser() -> argparse.ArgumentParser:
     fetch.add_argument("--as-of", type=date.fromisoformat, default=date.today())
     fetch.add_argument("--output", type=Path, required=True)
 
+    import_csv = sub.add_parser("import-results", help="Import normalized CSV results into PostgreSQL")
+    import_csv.add_argument("--csv", type=Path, required=True)
+
     predict = sub.add_parser("predict-csv", help="Fit historical CSV data and forecast a fixture")
     predict.add_argument("--csv", type=Path, required=True)
     predict.add_argument("--home", required=True)
@@ -67,6 +70,13 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     matches = read_results_csv(args.csv)
+    if args.command == "import-results":
+        from football_predictor.storage import PostgresRepository
+        repository = PostgresRepository()
+        repository.ensure_schema()
+        imported = repository.import_matches(matches)
+        print(f"Imported {imported} new fixtures; skipped {len(matches) - imported} duplicates")
+        return 0
     if args.command == "backtest-csv":
         report = walk_forward(
             matches, lambda: PenaltyblogModel(args.model),

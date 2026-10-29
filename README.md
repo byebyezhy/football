@@ -16,6 +16,18 @@
 - [数据源插件接口规范](docs/DATA_SOURCES.md)
 - [GitHub 与 files 文件服务器发布约定](docs/RELEASES.md)
 - [当前实现与下一阶段任务](docs/IMPLEMENTATION_STATUS.md)
+- [VPS 部署与域名配置](docs/DEPLOY_VPS.md)
+
+## V0.2 网站与 VPS 部署（开发中）
+
+- 网站域名：`https://fb.linmeng.ai`；Ubuntu 24.04 VPS：`45.12.52.34`。
+- 新增 FastAPI 网站及 `/healthz`、`/api/status`、`/api/competitions`、`/api/teams`、`/api/predict`。
+- 网站可选择已导入赛果的联赛、主客球队、比赛日期和 Poisson/Dixon–Coles 模型，显示胜平负与最可能的 5 个比分。
+- `football import-results --csv ...` 将标准化赛果 CSV 幂等导入 PostgreSQL；没有赛果时页面明确显示空状态。
+- Docker Compose + PostgreSQL + Caddy；数据库不对外暴露端口，Caddy 负责 `fb.linmeng.ai` 的 HTTPS。
+- 发布源码包允许公开分发，仍由 GitHub 人工触发发布；不上传数据库、SSH 密钥或 `.env`。
+
+详见 [Ubuntu VPS 部署步骤](docs/DEPLOY_VPS.md)。此阶段提供**可部署源码和测试**，尚不代表 VPS 已经真实部署成功或预测精度经过实战验证。
 
 ## 代码骨架（V1.0 开发中）
 
