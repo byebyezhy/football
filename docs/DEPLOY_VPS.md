@@ -115,7 +115,30 @@ ss -lntp
 
 ## 6. 首次导入真实历史赛果
 
-当前网站只有预测逻辑和最小数据库，**没有预装真实赛果、没有自动抓取未来赛程，也没有验证过的实战预测准确率**。需要使用获得授权的数据源获取标准 CSV，然后放在 VPS `/opt/football/shared/data/raw/`，例如：
+当前网站只有预测逻辑和最小数据库，**没有预装真实赛果、没有自动抓取未来赛程，也没有验证过的实战预测准确率**。需要使用获得授权的数据源获取标准 CSV。
+
+Soccerdata MatchHistory 可用时，可以先检查连通性，再采集到容器的临时目录，最后复制到 VPS 的持久化原始数据目录。请在**新版 Docker 镜像**内运行；早期 v0.2.5 镜像的非 root 用户首次采集时，会因为 `tls_requests` 无法写入自身的本地 `.so` 缓存而报 `Permission denied`，已在后续构建中改为镜像构建时预置该库。
+
+```bash
+cd "/opt/football/releases/football-$RELEASE_VERSION"
+
+docker compose exec api football source-preview \
+  --league 'ENG-Premier League' --season '2024-25' --as-of 2026-10-29
+
+docker compose exec api football fetch-results \
+  --league 'ENG-Premier League' --season '2024-25' --as-of 2026-10-29 \
+  --output /tmp/epl-2024-25.csv
+
+API_CONTAINER="$(docker compose ps -q api)"
+docker cp "$API_CONTAINER:/tmp/epl-2024-25.csv" \
+  /opt/football/shared/data/raw/epl-2024-25.csv
+
+docker compose exec api football import-results --csv /app/data/epl-2024-25.csv
+```
+
+请确保 `source-preview` 真正返回比赛，且 `fetch-results` 提示已成功保存，再运行 `docker cp` 和 `import-results`；若采集失败，停在该步骤并记录错误，不要将空文件当作真实赛果。`fetch-results` 拒绝覆盖现有目标文件；重复运行之前，应先确认临时文件是否存在。
+
+如果来源无法访问，也可以从获得授权的其他来源准备标准 CSV，放在 VPS `/opt/football/shared/data/raw/`，例如：
 
 ```bash
 cp /root/epl-2024-25.csv /opt/football/shared/data/raw/epl-2024-25.csv
