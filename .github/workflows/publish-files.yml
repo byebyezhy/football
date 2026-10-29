@@ -26,7 +26,7 @@ on:
 # A merge to main automatically creates a unique, immutable test release.
 # workflow_dispatch remains available for exact-version builds and stable releases.
 env:
-  RELEASE_VERSION: ${{ github.event_name == 'push' && format('v0.2.{0}', github.run_number) || inputs.version }}
+  RELEASE_VERSION: ${{ github.event_name == 'push' && format('v0.3.{0}', github.run_number) || inputs.version }}
   RELEASE_CHANNEL: ${{ github.event_name == 'push' && 'test' || inputs.channel }}
   RELEASE_OPERATION: ${{ github.event_name == 'push' && 'publish-new' || inputs.operation }}
 
