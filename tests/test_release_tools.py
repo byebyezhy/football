@@ -20,7 +20,13 @@ class ReleaseToolTests(unittest.TestCase):
         for relative, body in {
             "README.md": "Football\n",
             "pyproject.toml": "[project]\nname='football'\n",
+            "Dockerfile": "FROM python:3.11-slim\n",
+            ".dockerignore": ".env\n",
+            "compose.yaml": "services: {}\n",
+            ".env.example": "POSTGRES_PASSWORD=\n",
+            "deploy/Caddyfile": "fb.linmeng.ai { respond OK }\n",
             "src/football_predictor/__init__.py": "__version__ = 'test'\n",
+            "src/football_predictor/web/static/index.html": "<h1>test</h1>\n",
             "docs/RELEASES.md": "Public docs\n",
             "tests/test_sample.py": "assert True\n",
             "data/raw/private.csv": "Sensitive data\n",
@@ -40,7 +46,10 @@ class ReleaseToolTests(unittest.TestCase):
         with tarfile.open(self.output / record["archive"]) as archive:
             names = archive.getnames()
             self.assertTrue(any(item.endswith("/src/football_predictor/__init__.py") for item in names))
-            self.assertFalse(any("private.csv" in item or ".env" in item or ".github" in item for item in names))
+            self.assertTrue(any(item.endswith("/src/football_predictor/web/static/index.html") for item in names))
+            self.assertTrue(any(item.endswith("/compose.yaml") for item in names))
+            self.assertTrue(any(item.endswith("/.env.example") for item in names))
+            self.assertFalse(any("private.csv" in item or item.endswith("/.env") or ".github" in item for item in names))
         other = self.root / "dist2"
         record2 = build_release(self.root, other, self.version, self.commit)
         self.assertEqual(record["sha256"], record2["sha256"])
