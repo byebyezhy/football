@@ -41,6 +41,25 @@ services:
       retries: 5
       start_period: 45s
 
+  worker:
+    build: .
+    restart: unless-stopped
+    command: ["python", "-m", "football_predictor.worker"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: ${POSTGRES_DB:-football}
+      DB_USER: ${POSTGRES_USER:-football}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?Set a random POSTGRES_PASSWORD in .env}
+      SOCCERDATA_DIR: /tmp/football-soccerdata
+      MPLCONFIGDIR: /tmp/football-matplotlib
+      FOOTBALL_SYNC_LEAGUES: ${FOOTBALL_SYNC_LEAGUES:-ENG-Premier League}
+      FOOTBALL_SYNC_INTERVAL_HOURS: ${FOOTBALL_SYNC_INTERVAL_HOURS:-24}
+      FOOTBALL_BACKTEST_DATES: ${FOOTBALL_BACKTEST_DATES:-48}
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
