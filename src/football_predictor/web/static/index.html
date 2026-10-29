@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="凌盟足球预测：基于历史赛果的比分概率及胜平负概率分析。">
+  <title>凌盟足球预测 | 比分概率引擎</title>
+  <style>
+    :root{color-scheme:dark;--bg:#07121c;--panel:#10202b;--line:#263a45;--dim:#9aafb9;--text:#eaf5f4;--mint:#8cfcdb;--gold:#edc987;--blue:#79b8ee}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse 900px 500px at 80% -10%,#163c48,transparent),linear-gradient(150deg,#08151e,#07121c 65%);font:15px/1.6 system-ui,-apple-system,"PingFang SC","Microsoft Yahei",sans-serif;color:var(--text);min-height:100vh}
+    main{max-width:1160px;margin:auto;padding:30px 26px 70px}.top{display:flex;justify-content:space-between;align-items:center;gap:18px;padding-bottom:24px;border-bottom:1px solid var(--line)}
+    .brand{display:flex;align-items:center;gap:11px;font-size:18px;font-weight:750;letter-spacing:.04em}.brand-mark{width:36px;height:36px;display:grid;place-items:center;border:1px solid #508b84;border-radius:12px;color:var(--mint);font-size:21px}
+    .domain{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;color:#7b9aa6}.pill{border:1px solid #40565c;border-radius:999px;padding:7px 12px;color:var(--dim);font-size:12px}
+    .hero{padding:63px 0 40px;display:grid;grid-template-columns:1.45fr 1fr;gap:38px;align-items:end}.eyebrow{text-transform:uppercase;color:var(--mint);font-size:11px;letter-spacing:.23em;font-weight:750}.hero h1{font-size:clamp(32px,4.7vw,62px);line-height:1.12;letter-spacing:-.04em;margin:15px 0 18px}.hero h1 span{color:var(--mint)}
+    .hero p{max-width:560px;color:var(--dim);font-size:16px;margin:0}.hero-aside{padding:22px 25px;border-left:2px solid #558c81;color:var(--dim);font-size:14px}.hero-aside strong{display:block;color:var(--text);font-size:19px;margin:5px 0 8px}
+    .layout{display:grid;grid-template-columns:1.12fr 1fr;gap:22px}.panel{background:linear-gradient(145deg,#10232d,#0b1b25);border:1px solid var(--line);border-radius:20px;padding:28px;box-shadow:0 12px 50px #0003}.panel h2{font-size:20px;margin:0 0 6px;letter-spacing:-.02em}.sub{color:var(--dim);font-size:13px;margin:0 0 25px}
+    label{display:block;font-size:12px;color:#b6ccd2;margin:19px 0 8px;font-weight:650}select,input,button{font:inherit}select,input{width:100%;border:1px solid #35505b;border-radius:11px;background:#0b1b26;color:var(--text);padding:12px 13px;outline:none;min-height:48px}
+    select:focus,input:focus{border-color:var(--mint);box-shadow:0 0 0 3px #8cfcdb1d}select:disabled{color:#637b88}.row{display:grid;grid-template-columns:1fr 1fr;gap:14px}.action{margin-top:25px;width:100%;border:0;background:var(--mint);color:#07211e;padding:14px 20px;font-weight:800;border-radius:12px;cursor:pointer;transition:transform .15s}.action:hover{transform:translateY(-1px)}.action:disabled{opacity:.45;cursor:not-allowed;transform:none}
+    .alert{font-size:12px;color:var(--gold);margin-top:15px;min-height:18px}.summary{display:flex;gap:15px;justify-content:space-between;align-items:center;margin-top:25px;padding-top:18px;border-top:1px solid var(--line)}.stat-label{color:var(--dim);font-size:11px}.stat-number{font-size:24px;font-weight:750;font-variant-numeric:tabular-nums}
+    .empty{min-height:308px;display:grid;align-content:center;gap:12px;text-align:center;color:var(--dim);border:1px dashed #37505a;border-radius:13px;padding:20px;margin-top:22px}.empty .symbol{font-size:42px;color:var(--mint);font-weight:200}.empty strong{color:var(--text);font-size:18px}
+    .result{display:none}.matchup{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:19px 0 24px;font-size:19px;font-weight:700}.vs{color:var(--dim);font-size:11px}.prob-head{display:grid;grid-template-columns:repeat(3,1fr);gap:13px}.prob-box{padding:15px 8px;background:#0b1a24;border:1px solid var(--line);border-radius:12px;text-align:center}.prob-value{font-size:25px;font-weight:780;line-height:1.3;font-variant-numeric:tabular-nums}.prob-box:nth-child(1) .prob-value{color:var(--mint)}.prob-box:nth-child(2) .prob-value{color:var(--gold)}.prob-box:nth-child(3) .prob-value{color:var(--blue)}
+    .score-heading{display:flex;justify-content:space-between;align-items:center;margin:25px 0 13px}.score-heading strong{font-size:14px}.score-heading small{color:var(--dim)}.score-item{display:grid;grid-template-columns:49px 1fr 60px;gap:12px;align-items:center;margin:11px 0}.score-num{font-family:ui-monospace,monospace;font-size:15px;font-weight:750}.bar{height:7px;border-radius:10px;background:#25414a;overflow:hidden}.bar>span{display:block;height:100%;background:linear-gradient(90deg,#4bbaac,#9cfadd);border-radius:10px}.score-pct{text-align:right;color:var(--mint);font-variant-numeric:tabular-nums;font-size:13px}
+    .fine{font-size:12px;color:#91a8b0;margin-top:21px}.features{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:26px}.feature{border:1px solid #233944;border-radius:14px;padding:20px 22px;color:var(--dim);font-size:13px}.feature strong{display:block;color:var(--text);font-size:15px;margin-bottom:7px}footer{border-top:1px solid var(--line);padding-top:24px;margin-top:54px;color:#77929c;font-size:12px;display:flex;justify-content:space-between;gap:14px}
+    @media(max-width:830px){.hero,.layout{grid-template-columns:1fr}.hero{padding-top:40px}.hero-aside{display:none}.panel{padding:23px}.features{grid-template-columns:1fr 1fr}}
+    @media(max-width:530px){main{padding:18px 16px 50px}.top{align-items:flex-start}.pill{font-size:10px}.row,.features{grid-template-columns:1fr}.hero h1{font-size:38px}footer{flex-direction:column}.prob-value{font-size:21px}}
+  </style>
+</head>
+<body>
+<main>
+  <header class="top">
+    <div class="brand"><span class="brand-mark">◈</span><div>凌盟 · 足球预测<div class="domain">fb.linmeng.ai</div></div></div>
+    <span class="pill" id="connection">正在连接数据服务</span>
+  </header>
+  <section class="hero">
+    <div><div class="eyebrow">Football intelligence / 预测实验室</div><h1>比分不是猜测。<br><span>用概率看比赛。</span></h1><p>结合历史赛果与统计模型，计算胜平负概率和最可能出现的比分。每一次预测都标注模型与训练数据量。</p></div>
+    <div class="hero-aside">当前版本 · V0.2 实验性基线<strong>Poisson / Dixon–Coles</strong>仅使用已导入的完整历史赛果；赔率、xG、实时阵容及自动赛程将在后续版本逐步接入。</div>
+  </section>
+  <section class="layout">
+    <div class="panel">
+      <h2>生成一场比赛预测</h2><p class="sub">先选择联赛，再选择主客球队和比赛日期</p>
+      <form id="forecast-form">
+        <label for="competition">联赛 / COMPETITION</label><select id="competition" required disabled><option value="">等待历史赛果导入</option></select>
+        <div class="row"><div><label for="home">主队 / HOME</label><select id="home" required disabled><option value="">请选择主队</option></select></div><div><label for="away">客队 / AWAY</label><select id="away" required disabled><option value="">请选择客队</option></select></div></div>
+        <div class="row"><div><label for="as-of">比赛日期 / DATE</label><input id="as-of" type="date" required></div><div><label for="model">预测模型 / MODEL</label><select id="model"><option value="dixon_coles">Dixon–Coles</option><option value="poisson">Poisson</option></select></div></div>
+        <button class="action" id="run" type="submit" disabled>计算比分概率</button><div class="alert" role="status" id="message"></div>
+      </form>
+      <div class="summary"><div><div class="stat-label">已入库历史比赛</div><div class="stat-number" id="match-count">—</div></div><div><div class="stat-label">最新赛果日期</div><div class="stat-number" id="latest-date" style="font-size:17px">—</div></div></div>
+    </div>
+    <div class="panel">
+      <h2>概率分布</h2><p class="sub">胜平负与最有可能的 5 个比分</p>
+      <div class="empty" id="empty"><div class="symbol">◎</div><strong>等待计算</strong><span>导入历史赛果后，选择球队即可生成真实模型计算的概率结果。</span></div>
+      <div class="result" id="result">
+        <div class="matchup"><span id="match-home"></span><span class="vs">VS</span><span id="match-away"></span></div>
+        <div class="prob-head"><div class="prob-box"><div class="stat-label">主胜</div><div class="prob-value" id="p-home"></div></div><div class="prob-box"><div class="stat-label">平局</div><div class="prob-value" id="p-draw"></div></div><div class="prob-box"><div class="stat-label">客胜</div><div class="prob-value" id="p-away"></div></div></div>
+        <div class="score-heading"><strong>最高概率比分</strong><small>Exact score top 5</small></div><div id="top-scores"></div>
+        <div class="fine" id="model-detail"></div>
+      </div>
+    </div>
+  </section>
+  <section class="features"><div class="feature"><strong>01 / 可扩展采集</strong>通过 Soccerdata 等插件持续添加历史赛果、赛程及统计数据源。</div><div class="feature"><strong>02 / 统计预测引擎</strong>使用 Penaltyblog 将不同比分转化为完整概率矩阵。</div><div class="feature"><strong>03 / 历史回测</strong>逐日 Walk-forward 回测，评估模型是否在未知赛果上有效。</div></section>
+  <footer><span>© 凌盟足球预测 · 实验性数据分析工具</span><span>概率不等于结果，不提供投注建议。</span></footer>
+</main>
+<script>
+  const $ = id => document.getElementById(id);
+  const pct = number => (number * 100).toFixed(1) + '%';
+  const message = text => { $('message').textContent = text; };
+  const localToday = () => { const d=new Date(); return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-'); };
+  $('as-of').value = localToday();
+  async function request(url){ const response=await fetch(url,{headers:{Accept:'application/json'}}); const data=await response.json(); if(!response.ok)throw new Error(data.detail || '服务暂不可用'); return data; }
+  function fill(id,values){ const select=$(id); select.replaceChildren(); const placeholder=document.createElement('option'); placeholder.value='';placeholder.textContent=values.length?'请选择':'暂无可用数据'; select.append(placeholder); for(const value of values){const option=document.createElement('option');option.value=value;option.textContent=value;select.append(option);} select.disabled=!values.length; }
+  async function loadTeams(){ fill('home',[]);fill('away',[]);$('run').disabled=true; const comp=$('competition').value;if(!comp)return;try{const data=await request('/api/teams?competition='+encodeURIComponent(comp));fill('home',data.teams);fill('away',data.teams);$('run').disabled=data.teams.length<2;}catch(error){message(error.message);} }
+  async function bootstrap(){try{const [status,competitions]=await Promise.all([request('/api/status'),request('/api/competitions')]);$('connection').textContent='● 数据服务已连接';$('match-count').textContent=status.matches.toLocaleString();$('latest-date').textContent=status.latest_match_date||'暂无';fill('competition',competitions.competitions);if(!competitions.competitions.length)message('当前尚无历史赛果，请先使用管理员 CLI 导入数据。');}catch(error){$('connection').textContent='数据服务未就绪';message(error.message);} }
+  $('competition').addEventListener('change',loadTeams);
+  $('forecast-form').addEventListener('submit',async event=>{event.preventDefault();const home=$('home').value,away=$('away').value;if(!home||!away||home===away){message('请选择不同的主客球队');return;}const params=new URLSearchParams({competition:$('competition').value,home,away,as_of:$('as-of').value,model:$('model').value});$('run').disabled=true;message('正在拟合模型，首次计算可能需要一些时间…');try{const data=await request('/api/predict?'+params);$('empty').style.display='none';$('result').style.display='block';$('match-home').textContent=data.home_team;$('match-away').textContent=data.away_team;$('p-home').textContent=pct(data.home_win);$('p-draw').textContent=pct(data.draw);$('p-away').textContent=pct(data.away_win);const scores=$('top-scores');scores.replaceChildren();for(const row of data.top_scores){const item=document.createElement('div');item.className='score-item';const score=document.createElement('span');score.className='score-num';score.textContent=row.score;const bar=document.createElement('div');bar.className='bar';const inner=document.createElement('span');inner.style.width=Math.min(100,row.probability*100*4)+'%';bar.append(inner);const percent=document.createElement('span');percent.className='score-pct';percent.textContent=pct(row.probability);item.append(score,bar,percent);scores.append(item);} $('model-detail').textContent='模型：'+data.model+' · 训练赛果：'+data.training_matches+' 场 · 截止日期：'+data.as_of;message(data.warning);}catch(error){message(error.message);}finally{$('run').disabled=false;}});
+  bootstrap();
+</script>
+</body>
+</html>
