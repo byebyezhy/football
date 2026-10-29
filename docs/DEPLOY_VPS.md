@@ -42,7 +42,7 @@ RELEASE_VERSION="$(curl -fsSL https://files.shenqianqian.com/football/channels/t
 echo "$RELEASE_VERSION"
 ```
 
-应输出 `v0.2.N` 形式，例如 `v0.2.4`。**请确认版本号确实是 `v` 加三个数字字段，不要在版本为空或异常时继续。**
+应输出 `vX.Y.Z` 形式；从 V0.3 开始主版本为 `v0.3.N`。**请确认版本号确实是 `v` 加三个数字字段，不要在版本为空或异常时继续。**
 
 ```bash
 mkdir -p "/opt/football/downloads/$RELEASE_VERSION" /opt/football/releases /opt/football/shared/data/raw
@@ -171,9 +171,39 @@ docker compose ps
 4. 重复第 5 节 HTTPS/API 验收。不要同时从旧版本目录运行 `docker compose up`；固定项目名 `football` 会让新版本接管同一组服务与命名卷。
 5. 若需回滚，先确认数据库 Schema 兼容，再进入旧版本目录执行 `docker compose up -d --build`。**绝不执行 `docker compose down -v`**，那会删除数据卷。
 
-## 8. 安全边界与后续开发
+## 8. V0.3 首次自动采集与回测验收
+
+V0.3 在原有 `api`、`db`、`caddy` 基础上增加独立的 `worker` 容器。**用户只需要按第 7 节部署新版；worker 启动后自动执行，不再需要手动逐季 CSV 导入。** 自动采集和模型计算只在 VPS 执行，GitHub 和 files 不保存原始比赛数据。
+
+首次启动会尝试拉取英超近五个完整赛季及当前赛季，共六个赛季（以当前年份和 7 月赛季边界动态计算）。已存在的 380 场不会被覆盖或删除。旧赛季默认 30 天复查一次，当前赛季每天复查一次；后台最长约 7 天更新一次回测报告。第一次模型训练可能需要数分钟甚至更久，请不要因此重启数据库或删除卷。
+
+在**新版发布目录**检查：
+
+```bash
+docker compose ps
+docker compose logs --tail=120 worker
+curl -fsS 'https://fb.linmeng.ai/api/status'
+curl -fsS 'https://fb.linmeng.ai/api/sources?competition=ENG-Premier%20League'
+curl -fsS 'https://fb.linmeng.ai/api/backtests?competition=ENG-Premier%20League'
+```
+
+- `/api/status` 的 `matches` 应在采集完成后超过已有 380 场；若部分源访问失败，原赛果会保留。
+- `/api/sources` 显示各赛季最新抓取状态；其中 `status: error` 说明该赛季失败，查看 `worker` 日志定位，不代表整站故障。
+- `/api/backtests` 只返回已保存的 Poisson / Dixon–Coles 真实回测概要。**如果刚启动返回空数组，表示后台尚未算完或回测失败，绝不能当作真实成绩为零。**
+- 前端新增“真实历史回测”区块，只读取后台结果；公网请求不会现场运行耗时的模型回测。
+- `worker` 与 API 使用同一个旧 PostgreSQL 卷，新建两张独立元数据表 `source_sync_runs` / `model_backtest_reports`；不清空 `match_results`。
+
+可选诊断（一般不需要人工运行）：
+
+```bash
+docker compose exec worker python -m football_predictor.worker --once
+```
+
+如想限制更新频率，可在 VPS 私有 `/opt/football/shared/.env` 中设置 `FOOTBALL_SYNC_INTERVAL_HOURS`（默认 24，范围 1–168）和 `FOOTBALL_BACKTEST_DATES`（默认 48，范围 1–365）；修改后由用户重建/重启 worker 生效。当前 V0.3 只自动采集历史赛果，**不代表已经有未来赛程、赔率、xG 或可核实的实战收益**。
+
+## 9. 安全边界与后续开发
 
 - `.env`、PostgreSQL 数据卷、数据库备份与原始数据只存在 VPS 的私有存储，不通过 files 发布。
 - 公网 API 当前没有账户认证/限流/风控，先以小流量验证；正式推广前补上运维监控与安全措施。
-- 新采集源、新模型、自动采集调度、可靠数据快照、真实赛季回测、模型版本管理均是后续阶段，不能当作当前已上线功能。
+- V0.3 开始实现单个 Soccerdata 历史赛果源的后台定时采集与回测报告；多个异构来源容错、可靠赛前赔率/xG 快照、赛程、完整模型版本管理及跨源冲突解决仍是后续阶段。
 - **不要为方便部署而让 GitHub Actions 持有 VPS root 密钥或其他 VPS 凭据**；这是用户在 2026-10-29 明确选择的长期职责划分。
