@@ -19,13 +19,13 @@
 - PostgreSQL 数据库、球队映射/跨源冲突处理、原始数据溯源表。
 - 完整 `as_of` 数据可见性语义（尤其赔率和 xG 的发布时间快照）及模型版本持久化；当前 walk-forward 只确保不同比赛日期的赛果不会泄漏。
 - 在线预测 API、后台页面、自动采集调度器。
-- 文件服务器 SSH 部署账号/密钥、GitHub Environment 审批与 HTTPS 目录映射的实际配置（发布代码已实现，但尚未实际连通）。
+- 文件服务器 SSH 部署账号/密钥、GitHub Repository Secrets 与 HTTPS 目录映射的实际配置（发布代码已实现，但尚未实际连通）。GitHub Free 私有仓库没有 Environment 人工审批。
 
 ## 下一 PR 的验收重点
 
 1. 使用单一联赛的授权历史数据进行一次真实数据抓取与持久化，验证列名和球队映射。
 2. 使用至少两个赛季的真实结果运行已实现的 walk-forward，核验时间隔离并输出第一份可复现基线报告。
 3. 固定第三方依赖版本并增加集成测试，确保上游 API 变化可被识别。
-4. 配置 `football-files` GitHub Environment、校验 SSH 主机指纹和 Nginx 映射，然后先运行 `build-only`，再做一次 `test` 渠道实际上传验收。
+4. 配置 Repository Actions Secrets、校验 SSH 主机指纹和 Nginx 映射，然后先运行 `build-only`，再做一次 `test` 渠道实际上传验收。
 
 > 任何由样例代码生成的比分概率都不应被视为经过回测验证的实战预测。
