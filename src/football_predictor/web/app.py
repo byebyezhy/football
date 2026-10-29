@@ -11,6 +11,7 @@ from fastapi.responses import FileResponse
 
 from football_predictor.forecast_service import ForecastError, ForecastService
 from football_predictor.storage import PostgresRepository
+from football_predictor.web.team_names import competition_labels, team_labels
 
 
 INDEX = Path(__file__).parent / "static" / "index.html"
@@ -49,14 +50,17 @@ def create_app(repository=None, *, model_factory=None) -> FastAPI:
     @app.get("/api/competitions", tags=["data"])
     def competitions():
         try:
-            return {"competitions": repo.competitions()}
+            codes = repo.competitions()
+            return {"competitions": codes, "competition_names_zh": competition_labels(codes)}
         except Exception as exc:
             raise HTTPException(status_code=503, detail="数据库暂不可用") from exc
 
     @app.get("/api/teams", tags=["data"])
     def teams(competition: str = Query(min_length=1, max_length=80)):
         try:
-            return {"competition": competition, "teams": repo.teams(competition)}
+            names = repo.teams(competition)
+            return {"competition": competition, "teams": names,
+                    "team_names_zh": team_labels(competition, names)}
         except Exception as exc:
             raise HTTPException(status_code=503, detail="数据库暂不可用") from exc
 
