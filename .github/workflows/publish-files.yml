@@ -73,8 +73,8 @@ jobs:
     if: ${{ inputs.operation != 'build-only' }}
     needs: package
     runs-on: ubuntu-latest
-    environment:
-      name: football-files
+    # GitHub Free + private repository: use repository-level Actions Secrets.
+    # Environment Secrets and Required reviewers are unavailable on this plan.
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
