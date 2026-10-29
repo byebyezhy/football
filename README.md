@@ -18,16 +18,17 @@
 - [当前实现与下一阶段任务](docs/IMPLEMENTATION_STATUS.md)
 - [VPS 部署与域名配置](docs/DEPLOY_VPS.md)
 
-## V0.2 网站与 VPS 部署（开发中）
+## V0.3 多赛季自动采集与实证回测
 
-- 网站域名：`https://fb.linmeng.ai`；Ubuntu 24.04 VPS：`45.12.52.34`。
-- 新增 FastAPI 网站及 `/healthz`、`/api/status`、`/api/competitions`、`/api/teams`、`/api/predict`。
-- 网站可选择已导入赛果的联赛、主客球队、比赛日期和 Poisson/Dixon–Coles 模型，显示胜平负与最可能的 5 个比分。
-- `football import-results --csv ...` 将标准化赛果 CSV 幂等导入 PostgreSQL；没有赛果时页面明确显示空状态。
-- Docker Compose + PostgreSQL + Caddy；数据库不对外暴露端口，Caddy 负责 `fb.linmeng.ai` 的 HTTPS。
-- 发布源码包允许公开分发，仍由 GitHub 人工触发发布；不上传数据库、SSH 密钥或 `.env`。
+- 网站 `https://fb.linmeng.ai`，用户在 Ubuntu 24.04 VPS 自行部署；截至 2026-10-29 已验证一季英超 380 场赛果入库，中文球队展示正常。
+- 保留 V0.2 的 FastAPI 比分概率预测、Poisson/Dixon–Coles、PostgreSQL 和 Caddy；新增 `/api/sources`、`/api/backtests` 只读接口及回测网页。
+- `worker` 是独立、非 root 的后台容器：启动后补充英超近五个完整赛季与当前赛季，按日检查当前赛季、按月复查历史赛季。失败隔离且不会删除原有比赛。
+- 已有球队/比赛主键不变；自动导入与管理员 CLI 共享幂等入库机制，保存采集结果/失败状态供运维查看。
+- 以真实历史赛果进行滚动 walk-forward 回测，默认评估最近 48 个有比赛的日期；Poisson 与 Dixon–Coles 报告保存到 PostgreSQL，页面仅读取预先计算的结果，不在公网请求中训练模型。
+- 数据库新增两张**仅追加**表：`source_sync_runs`、`model_backtest_reports`。升级保留既有 `match_results`、数据库卷和本地 `.env`。
+- 仍无未来赛程、xG、赔率、真实赛前快照，不能把回测指标称为未来比赛命中率保证。
 
-详见 [Ubuntu VPS 部署步骤](docs/DEPLOY_VPS.md)。此阶段提供**可部署源码和测试**，尚不代表 VPS 已经真实部署成功或预测精度经过实战验证。
+V0.3 首次自动采集和回测需在用户部署后通过 VPS 日志与 `/api/backtests` **实测验收**；发布代码成功不代表后台任务已跑完。详见 [Ubuntu VPS 手工升级与验证](docs/DEPLOY_VPS.md)。
 
 ## 代码骨架（V1.0 开发中）
 
@@ -67,6 +68,15 @@ football backtest-csv --csv data/raw/epl-2024-25.csv \
 
 注意：CSV 写入采用“文件必须不存在”规则，防止误覆盖；回测只隔离同日赛果，赔率、阵容、xG 等外部赛前特征仍需独立的发布时间快照机制。
 
+V0.3 新增管理员命令（不会触发网站部署、不会上传原始数据到 files）：
+
+```bash
+football sync-results --league 'ENG-Premier League' --as-of 2026-10-29
+football backtest-db --competition 'ENG-Premier League' --as-of 2026-10-29 --evaluation-dates 48
+```
+
+正式部署后无需手动运行，Compose 的 `worker` 容器会定期执行。管理员命令只供诊断或主动复算。
+
 用内部标准格式的 CSV 离线拟合模型并预测指定球队：
 
 ```bash
@@ -74,14 +84,14 @@ football predict-csv --csv matches.csv --home Arsenal --away Chelsea --as-of 202
 ```
 
 CSV 列：`competition,season,date,home_team,away_team,home_goals,away_goals`，可选 `source_id`。
-当前已有自动执行的离线回测程序，但还没有在线 API 或经过真实足球数据集评估的预测指标。
+未在真实多赛季数据上完成验收前，不能宣称任何准确率指标。
 
 ## 开发与发布约定
 
-- `main` 为审核合并后的主分支。后续功能通过 feature 分支、Pull Request、人工审核合并。
-- GitHub Actions 负责检查、构建和发布工件；新增人工触发的 `publish-files.yml`，默认仅构建，可在凭据/环境配置完成后手动上传。
+- `main` 为合并后的主分支，助手负责 feature PR、CI、合并和 files 发布；不要求用户逐项点击 GitHub。
+- GitHub Actions 在 `main` 合并后自动构建唯一版本并发布至 files 的 `test` 渠道，保留手工稳定版提升/回滚入口。
 - `files.shenqianqian.com` 仅用于存储公开发行文件；不作为预测 API、采集任务或数据库的运行服务器。
 - 不向发行服务器上传数据库、凭据、`.env`、密钥或其他私有数据。
-- 发布版本可在 `test` 与 `stable` 渠道间进行经过哈希校验的手动切换；GitHub Free 私有仓库使用 **Repository Actions Secrets**（无需 Environment），首次上传前仍需配置文件服务器 SSH 权限，详见 [发布操作指南](docs/RELEASES.md)。
+- 发布版本可在 `test` 与 `stable` 渠道间进行经过哈希校验的切换。VPS 由用户亲自 SSH 安装/更新，绝不将 root 私钥交给 GitHub，详见 [发布操作指南](docs/RELEASES.md)。
 
-> 项目状态：V1.0 代码骨架阶段，尚未部署或完成真实数据集上的准确率验证。
+> 项目状态：V0.3 自动采集与回测代码待 VPS 真实运行验证；网站 V0.2.7 已成功上线并导入 380 场英超比赛。
