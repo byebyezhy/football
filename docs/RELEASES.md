@@ -72,7 +72,7 @@ https://files.shenqianqian.com/football/channels/test.json
 ## 6. VPS 安装与升级（**用户操作**）
 
 - 运行服务器：`root@45.12.52.34:22`，Ubuntu 24.04，网站 `https://fb.linmeng.ai`。
-- 用户已将 Cloudflare DNS 改为灰云，公开 A 记录指向 `45.12.52.34`；2026-10-29 已确认网站运行、英超 2024–25 共 380 场比赛入库，未来新版本的运行仍需另行验收。
+- 用户已将 Cloudflare DNS 改为灰云，公开 A 记录指向 `45.12.52.34`；2026-10-29 用户已部署 `v0.3.8`，反馈四个服务正常、英超 1600 场赛果入库、140 场两模型实证回测完成。2021–22 赛季遇到历史 CSV UTF-8 BOM 与 Soccerdata 解码不兼容，后续补丁需要用户手工升级再验收。
 - 助手**只负责 files 上的版本管理**，不能自动往 VPS 推送、重启容器或替用户创建 `VPS_SSH_KEY`。
 - 用户在 VPS 上从 `test.json` 查询实际版本，下载 tar.gz 和 `SHA256SUMS`、核验后解压，复用私有 `.env`、数据与 Docker 卷，运行 `docker compose up -d --build`，再核验 HTTPS/API。
 - 详见 **[Ubuntu VPS 手工部署与更新指南](DEPLOY_VPS.md)**；不要用旧版硬编码 `v0.2.0` 的步骤。

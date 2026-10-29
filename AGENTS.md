@@ -10,7 +10,7 @@
 2. 阅读本文件，以及 `README.md`、`docs/ARCHITECTURE_V1.md`、`docs/DATA_SOURCES.md`、`docs/DEPLOY_VPS.md`；以**当前代码和实际 CI/服务状态**为准，旧文档可能仍写“手工发布”。
 3. 读取 [当前测试发布指针](https://files.shenqianqian.com/football/channels/test.json)，从中确认实际版本、commit、tarball URL、SHA256；不要把本文的历史版本当成最新版本。
 4. 检查 [GitHub Actions](https://github.com/byebyezhy/football/actions) 和最新 PR/commit，确认测试及发布任务真实成功后再推进下一阶段。
-5. **2026-10-29 已独立核实** `https://fb.linmeng.ai/api/status` 返回 `status: ready`、`matches: 380`、`latest_match_date: 2025-05-25`。用户已升级到 v0.2.7、确认中文球队显示正常；英超 2024–25 共 380 场已入库。用户明确批准开始 **V0.3 多赛季自动采集 + 真实回测**，由助手做代码及 files 发布，用户自行在 VPS 安装和验收。
+5. **2026-10-29 用户已部署 v0.3.8，提供实际 VPS 日志/API 输出**：四个 Compose 服务正常；英超赛果 `matches: 1600`、`latest_match_date: 2026-10-25`；2022–23 至 2026–27 五个赛季采集成功；2021–22 报 `KeyError: 'league'`；Poisson / Dixon–Coles 在 140 场比赛上完成真实回测并写入报告。正在针对 **2021–22 官方 CSV BOM 编码变化**提供兼容补丁。用户只负责 VPS 更新，助手负责 GitHub / files。
 6. 默认使用中文与用户交流，主动推进工作。**用户已经明确授权助手直接完成 GitHub 代码提交、创建 PR、检查 CI、合并 PR、触发/重跑构建与 files 测试发布，不要再逐项要求用户去 GitHub 点击。VPS 登录、安装、更新、回滚由用户亲自执行，助手只负责给出经核对的命令和诊断。**
 
 ## 1. 产品目标与不变的架构原则
@@ -23,7 +23,7 @@
 - 长期产品方向可发展为“有依据、能复盘”的中文足球分析台：今日赛程、单场分析、多模型对比、预测快照、赛后复盘、校准与数据源健康状况。目前**并未全部实现**。
 - 不能凭模拟数据或未经验证的模型输出宣称预测准确率；要用真实授权历史数据比较 Brier、log loss、RPS、比分命中率、校准。
 
-## 2. 当前代码与功能（V0.3 开发版；未部署前不算线上功能）
+## 2. 当前代码与功能（线上已运行 V0.3.8；下一个补丁修复历史 CSV BOM）
 
 | 组件 | 位置 / 当前能力 |
 | --- | --- |
@@ -68,7 +68,7 @@ football sync-results --league 'ENG-Premier League' --as-of 2026-10-29
 football backtest-db --competition 'ENG-Premier League' --as-of 2026-10-29 --evaluation-dates 48
 ```
 
-CSV 列：`competition,season,date,home_team,away_team,home_goals,away_goals`；可选 `source_id`。访问 Football-Data.co.uk 曾受开发环境 DNS/网络限制，**不能据此假定 VPS 已经成功采集真实赛果**。
+CSV 列：`competition,season,date,home_team,away_team,home_goals,away_goals`；可选 `source_id`。V0.3.8 的英超多个真实赛季采集及首次 140 场回测已由用户日志确认；2021–22 源数据存在 BOM 编码兼容问题，详见 `docs/DATA_SOURCES.md`。即使修复通过单测和官方 CSV 验证，仍须待用户升级 VPS 后核实新增比赛入库。
 
 ## 3. 已完成的 GitHub 阶段
 
@@ -105,7 +105,7 @@ files SSH 服务器历史配置是全局 `PubkeyAuthentication no`，`Match User
 
 用户明确允许足球源码发行包**公开下载**。但数据库、`.env`、私钥、凭据、原始第三方数据绝不放在公开目录。
 
-## 5. 运行 VPS 与网站（英超 380 场已入库）
+## 5. 运行 VPS 与网站（2026-10-29 英超 1600 场已入库）
 
 | 事项 | 值 / 状态 |
 | --- | --- |
@@ -118,13 +118,13 @@ files SSH 服务器历史配置是全局 `PubkeyAuthentication no`，`Match User
 | 密码 | VPS 上创建本地 `.env`，填写强随机 `POSTGRES_PASSWORD`，**不上传 GitHub/files** |
 | 健康检查 | `https://fb.linmeng.ai/healthz` 和 `/api/status` |
 
-**2026-10-29 已确认运行情况：** 用户在 v0.2.5 首次抓取时遇到 `tls_requests` 原生 `.so` 目录无写权限；PR #9 通过 Docker 构建时预置原生库和非 root 只读容器 CI 检查修复此问题，`v0.2.6` 已自动发布到 files。用户升级后 `source-preview` 成功返回英超 `2024-25` **380 场、无无效行**，且表示已完成 CSV 导入；公网 `/api/status` 实测为 `matches: 380`、`latest_match_date: 2025-05-25`。**仍未有真实比分预测、多个赛季回测准确率的验证结果。** 完整升级/采集步骤见 `docs/DEPLOY_VPS.md`。
+**2026-10-29 最新运行情况（用户提交的 VPS 实测日志）：** v0.3.8 四个 Compose 容器均运行；`/api/status` 显示 `matches: 1600`、`latest_match_date: 2026-10-25`。Worker 自动采集 2022–23、2023–24、2025–26 各 380 场，2024–25 已存在 380 场（无重复），2026–27 当前季 80 场；**2021–22 报 `KeyError: 'league'`，尚未入库**。两模型已完成 2026-04-13 至 2026-10-25 范围内 140 场真实回测：Dixon–Coles RPS≈0.20831、Poisson RPS≈0.20887，差异很小，不应声称模型具有可靠优势。已确认官方 `2122/E0.csv` 新增 UTF-8 BOM 与 Soccerdata 旧赛季 Latin-1 解码路径不兼容；补丁需发布后由用户验证。完整升级/采集步骤见 `docs/DEPLOY_VPS.md`。
 
 操作上，由用户自己检查 VPS 的 SSH、端口、防火墙、现有服务和磁盘，再动手部署；保留数据库 Docker 命名卷，绝不执行 `docker compose down -v`。所有部署变更要有回滚方式。用户将 `.env` 和原始 CSV 数据保存在 VPS 私有的 `/opt/football/shared/` 中，每个新版本目录复用，不允许发布到 files。
 
 ## 6. 未完成、不得误报为完成的事项
 
-1. **第一优先：完成 V0.3 交付与 VPS 验收。** Python/数据库/worker/回测页面修改后，核对 PR 测试和可运行 Docker 构建，合并并核对 files 最新包；由用户按手工流程升级 VPS。确认 worker 实际导入多个真实赛季、`/api/sources` 含成功记录、`/api/backtests` 返回真实样本量和两模型指标，不能只看前端空模板。首次回测耗时长是可能的，不要求助手远程登录 VPS。
+1. **第一优先：修复 2021–22 源编码，发布兼容补丁并验收。** 官方英超 `2122/E0.csv` 带 BOM，但 Soccerdata 对旧赛季按 Latin-1 解析，导致 `KeyError: 'league'`；本地测试已成功解析 380 场。由助手完成 PR/CI/合并/files 发布，用户手工升级 VPS，确认数据库由 1600 场增加到约 1980 场且该季 `status: ok`；实际数字以 VPS 为准，不能在未部署时宣称修复完成。
 2. **第二优先：回测可靠性。** 校验两模型样本集是否完全相同，与简单基线对照，明确训练窗口/球队更名等局限，观察定时任务失败恢复。
 3. **第三优先：真实赛果扩展。** 需要继续增加独立来源、球队 ID 映射、跨源冲突/校正策略，未来加自动赛程/xG/赔率必须实现赛前数据发布时间快照。
 4. **之后：数据源扩展。** 加 fixtures、xG、赔率等插件、球队 ID 映射、源冲突处理、可审计的采集时间戳、限速缓存、定时任务和错误告警。
@@ -147,11 +147,11 @@ files SSH 服务器历史配置是全局 `PubkeyAuthentication no`，`Match User
 
 ## 8. 给新对话的简短状态摘要
 
-**当前已完成：** 数据源插件和 Poisson/Dixon–Coles 预测骨架、CSV 导入/回测、FastAPI 网站代码、PostgreSQL/Caddy Docker 部署包、GitHub 自动 CI/PR 合并流程、GitHub → files 自动测试版发布；v0.2.7 的中文球队显示用户确认正常，公网 API 验证旧版 380 场赛果正常。
+**当前已完成：** 数据源插件与 Poisson/Dixon–Coles、网站/中文球队显示、PostgreSQL/Caddy Docker、GitHub → files 自动发布；v0.3.8 已由用户部署，实际数据库有 1600 场赛果，独立 worker 成功同步五个赛季，140 场真实回测已存 PostgreSQL。
 
-**当前未完成：** V0.3 后台采集/回测的真实 VPS 运行验证、实测第一场线上比分预测、多赛季真实回测可信报告及后续多个异构来源、未来赛程等。
+**当前未完成：** 2021–22 BOM 导致的 `KeyError: 'league'` 修复部署验收、扩大回测区间与基线比较、实测第一场线上比分预测、多个异构来源、未来赛程等。
 
-**现在应做：** 完成 V0.3 测试与安全审核、GitHub PR/CI/合并、files 可下载包与 SHA256 验证；给用户升级命令，由用户在 VPS 验证 `worker`、多赛季入库与 `/api/backtests`。**在真实运行前，不宣称已取得准确率指标。** 绝不创建 VPS 自动部署工作流。
+**现在应做：** 完成 BOM 兼容补丁测试、GitHub PR/CI/合并、files 可下载包与 SHA256 验证；给用户升级命令，由用户在 VPS 验证 2021–22 的 380 场导入。已获得的 140 场真实回测指标应标注样本和日期，不能推断未来胜率。绝不创建 VPS 自动部署工作流。
 
 ---
 
