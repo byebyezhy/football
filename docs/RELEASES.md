@@ -17,7 +17,7 @@
 
 1. 助手从 `main` 创建功能分支，提交代码及测试，创建 PR。
 2. `.github/workflows/foundation-checks.yml` 对 PR 运行测试；助手核对成功后直接合并。
-3. `main` 的新提交自动触发 `.github/workflows/publish-files.yml`。GitHub 先通过离线测试，再生成不可变版本 `v0.2.<workflow_run_number>`、tar.gz、`SHA256SUMS`、`release.json`。
+3. `main` 的新提交自动触发 `.github/workflows/publish-files.yml`。GitHub 先通过离线测试，再生成不可变版本（V0.3 起为 `v0.3.<workflow_run_number>`）、tar.gz、`SHA256SUMS`、`release.json`。
 4. 工作流通过文件服务器专用 SSH 账号上传到 `/srv/files/public/football/releases/<version>/`；远端校验 SHA256、原子确定不可变目录。
 5. 从公网 HTTPS **完整下载 tar.gz**，复核 SHA256 成功后，才原子更新 `channels/test.json`。上传/公开下载/校验失败均不得宣称发布成功。
 6. 助手核对 GitHub Actions `package`、`publish` 结果及公网 test 指针后，把版本号、包链接和验证结果告诉用户；用户决定何时在 VPS 安装该版本。
@@ -35,8 +35,8 @@ https://files.shenqianqian.com/football/channels/test.json
 ```text
 /srv/files/public/football/
   releases/
-    v0.2.N/
-      football-v0.2.N.tar.gz
+    v0.3.N/
+      football-v0.3.N.tar.gz
       SHA256SUMS
       release.json
   channels/
@@ -72,7 +72,7 @@ https://files.shenqianqian.com/football/channels/test.json
 ## 6. VPS 安装与升级（**用户操作**）
 
 - 运行服务器：`root@45.12.52.34:22`，Ubuntu 24.04，网站 `https://fb.linmeng.ai`。
-- 用户已将 Cloudflare DNS 改为灰云，公开 A 记录指向 `45.12.52.34`；网站仍需在 VPS 上真正安装启动。
+- 用户已将 Cloudflare DNS 改为灰云，公开 A 记录指向 `45.12.52.34`；2026-10-29 已确认网站运行、英超 2024–25 共 380 场比赛入库，未来新版本的运行仍需另行验收。
 - 助手**只负责 files 上的版本管理**，不能自动往 VPS 推送、重启容器或替用户创建 `VPS_SSH_KEY`。
 - 用户在 VPS 上从 `test.json` 查询实际版本，下载 tar.gz 和 `SHA256SUMS`、核验后解压，复用私有 `.env`、数据与 Docker 卷，运行 `docker compose up -d --build`，再核验 HTTPS/API。
 - 详见 **[Ubuntu VPS 手工部署与更新指南](DEPLOY_VPS.md)**；不要用旧版硬编码 `v0.2.0` 的步骤。
