@@ -62,6 +62,12 @@ class SourceAdapter(Protocol):
 | Club Elo / Soccerdata | 球队实力评级 | 注意免费服务的访问条件和历史时点 |
 | 未来商业 API / 自有爬虫 | 赛程、伤停及其他 | 同一契约增加适配器 |
 
+### Football-Data 历史 CSV 编码兼容（2026-10-29）
+
+在实际 VPS 首轮自动同步中，英超 2021–22 赛季因 `KeyError: 'league'` 失败。经核对官方 `/mmz4281/2122/E0.csv` 的真实响应，其开头现在是 UTF-8 BOM 字节 `EF BB BF`；而 Soccerdata 的 MatchHistory 对 2024–25 之前的 CSV 仍使用 Latin-1 解码，因此首列被误读成 `ï»¿Div`，无法映射为 `league`。
+
+`SoccerdataMatchHistory` 对**仅此类 `KeyError('league')`** 提供受限兼容回退：沿用 Soccerdata 的下载/缓存接口，校验预期来源、赛季和 BOM，按 UTF-8（无法解码时 Latin-1）读取官方 CSV 中的 `Div/Date/HomeTeam/AwayTeam/FTHG/FTAG`，继续通过统一赛果校验与数据库幂等写入。其他字段错误或非 BOM 内容不被掩盖。已用真实 2021–22 英超源 CSV 离线解析出 380 场、0 个无效行；**只有用户升级后重新同步，才能确认 VPS 数据库补齐成功**。
+
 ## 6. 每次新增插件的验收清单
 
 - 有适配器单测、离线样本、字段字典、能力说明；
