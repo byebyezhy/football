@@ -1,7 +1,7 @@
 """Publish a checked release to the football-only directory on the files host.
 
 Never run this directly from unreviewed pull-request code. The workflow invokes
-it only through workflow_dispatch, after a separately approved environment job.
+it after successful checks from main or a manually dispatched release job.
 """
 
 from __future__ import annotations

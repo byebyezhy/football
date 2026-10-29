@@ -2,7 +2,7 @@
 
 本项目 VPS 目标：`45.12.52.34`，网站域名 `https://fb.linmeng.ai`。文件服务器 `https://files.shenqianqian.com/football/` 负责分发已经过 SHA256 校验的**公开源码发布包**。仓库所有者已明确允许发布包被公开下载。
 
-> 当前状态：部署配置和网站源代码已提交在开发 PR，**尚未在 VPS 上安装或验证**。本手册中的命令需要操作者登录 VPS 并主动执行。
+> 当前状态：网站代码已合并，但**尚未在 VPS 上安装或验证**。本手册中的 VPS 命令需要具备该服务器登录权限的操作者执行。
 
 ## 1. 网络与基础环境
 
@@ -12,13 +12,12 @@
 4. 按 [Docker 官方 Ubuntu 安装说明](https://docs.docker.com/engine/install/ubuntu/) 安装 Docker Engine 和 Compose plugin，随后执行 `docker --version`、`docker compose version` 验收。
 5. 确保 VPS 上没有其他服务占用 `80/443`。Caddy 通过公开 DNS 自动申请/续期证书；公网路由及证书签发取决于服务器防火墙和 DNS。
 
-## 2. 先在 GitHub 发布到 test
+## 2. GitHub 自动构建并发布到 test
 
-1. 完成代码审核，将对应 PR 合并到 `main`。
-2. 打开 `football → Actions → Build and optionally publish football release`。
-3. 选择 `main`、`version=v0.2.0`、`channel=test`、`operation=build-only`，确认测试/工件成功。
-4. 再手动选择相同版本的 `publish-new`，让 GitHub Actions 通过已配置的足球专用 SSH Secret 发布到文件服务器。
-5. 用浏览器检查 `https://files.shenqianqian.com/football/releases/v0.2.0/release.json` 可访问。
+1. 代码 PR 审查并合并到 `main` 后，`Build and optionally publish football release` 会自动测试、打包并发布到 `test`。
+2. 自动包使用 `v0.2.<该工作流运行序号>` 的不可变版本号，每次运行唯一；发布脚本先做本地 SHA256 和 HTTPS 公网下载复核，成功后才更新 `channels/test.json`。
+3. 访问 `https://files.shenqianqian.com/football/channels/test.json`，读取当前版本及 SHA256，再下载指向的包。**不要假设最新发布包就是固定的 v0.2.0**。
+4. `workflow_dispatch` 手动发布仍保留，用于指定版本、`build-only`、`promote-existing` 以及配合匹配 Git tag 的 `stable` 发布。
 
 发布命令有版本不可覆盖约束：同一个版本发布后不允许二次 `publish-new`；只切渠道使用 `promote-existing`。
 
