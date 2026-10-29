@@ -33,6 +33,12 @@ class FakeRepository:
     def teams(self, competition):
         return ["Arsenal", "Chelsea"] if competition == "EPL" and self.matches else []
 
+    def source_sync_status(self, competition):
+        return []
+
+    def recent_backtests(self, competition):
+        return []
+
     def revision(self, competition, as_of):
         rows = self.results(competition, as_of)
         return len(rows), str(len(rows))
@@ -88,7 +94,8 @@ class WebContractTests(unittest.TestCase):
         repo = FakeRepository()
         app = create_app(repo, model_factory=FakePredictionModel)
         paths = app.openapi()["paths"]
-        self.assertTrue({"/", "/healthz", "/api/status", "/api/predict", "/api/teams"}.issubset(
+        self.assertTrue({"/", "/healthz", "/api/status", "/api/predict", "/api/teams",
+                         "/api/sources", "/api/backtests"}.issubset(
             {route.path for route in app.routes}))
         self.assertIn("/api/predict", paths)
         endpoints = {route.path: route.endpoint for route in app.routes}
@@ -98,6 +105,8 @@ class WebContractTests(unittest.TestCase):
         self.assertEqual(endpoints["/api/competitions"]()["competition_names_zh"], {"EPL": "EPL"})
         self.assertEqual(endpoints["/api/teams"](competition="EPL")["team_names_zh"],
                          {"Arsenal": "Arsenal", "Chelsea": "Chelsea"})
+        self.assertEqual(endpoints["/api/sources"](competition="EPL")["sources"], [])
+        self.assertEqual(endpoints["/api/backtests"](competition="EPL")["reports"], [])
         prediction = endpoints["/api/predict"](
             competition="EPL", home="Arsenal", away="Chelsea",
             as_of=date(2025, 1, 1), model="poisson",
@@ -134,6 +143,8 @@ class WebHTTPTests(unittest.IsolatedAsyncioTestCase):
         team_data = (await self.client.get("/api/teams?competition=EPL")).json()
         self.assertEqual(team_data["teams"], ["Arsenal", "Chelsea"])
         self.assertEqual(team_data["team_names_zh"], {"Arsenal": "Arsenal", "Chelsea": "Chelsea"})
+        self.assertEqual((await self.client.get("/api/backtests?competition=EPL")).json()["reports"], [])
+        self.assertEqual((await self.client.get("/api/sources?competition=EPL")).json()["sources"], [])
 
     async def test_predict_and_bad_input(self):
         params = {"competition": "EPL", "home": "Arsenal", "away": "Chelsea", "as_of": "2025-01-01"}
