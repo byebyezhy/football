@@ -1,6 +1,8 @@
 name: Build and optionally publish football release
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       version:
@@ -21,6 +23,13 @@ on:
         type: choice
         options: [build-only, publish-new, promote-existing]
 
+# A merge to main automatically creates a unique, immutable test release.
+# workflow_dispatch remains available for exact-version builds and stable releases.
+env:
+  RELEASE_VERSION: ${{ github.event_name == 'push' && format('v0.2.{0}', github.run_number) || inputs.version }}
+  RELEASE_CHANNEL: ${{ github.event_name == 'push' && 'test' || inputs.channel }}
+  RELEASE_OPERATION: ${{ github.event_name == 'push' && 'publish-new' || inputs.operation }}
+
 permissions:
   contents: read
 
@@ -34,9 +43,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Check ref and semantic version
-        env:
-          RELEASE_VERSION: ${{ inputs.version }}
-          RELEASE_CHANNEL: ${{ inputs.channel }}
         shell: bash
         run: |
           set -euo pipefail
@@ -55,15 +61,13 @@ jobs:
       - name: Run offline tests
         run: PYTHONPATH=src python -m unittest discover -s tests -v
       - name: Build allow-listed source archive
-        env:
-          RELEASE_VERSION: ${{ inputs.version }}
         run: |
           python -m scripts.build_release --version "$RELEASE_VERSION" --commit "$GITHUB_SHA"
           cd dist
           sha256sum -c SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: football-${{ inputs.version }}
+          name: football-${{ env.RELEASE_VERSION }}
           path: |
             dist/*.tar.gz
             dist/SHA256SUMS
@@ -72,11 +76,11 @@ jobs:
           retention-days: 7
 
   publish:
-    if: ${{ inputs.operation != 'build-only' }}
+    if: ${{ github.event_name == 'push' || inputs.operation != 'build-only' }}
     needs: package
     runs-on: ubuntu-latest
-    # GitHub Free + private repository: use repository-level Actions Secrets.
-    # Environment Secrets and Required reviewers are unavailable on this plan.
+    # Credentials remain in repository-level Actions Secrets, never in the release archive.
+    # Only main pushes or a manually dispatched workflow can reach this job.
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -84,7 +88,7 @@ jobs:
           python-version: '3.11'
       - uses: actions/download-artifact@v4
         with:
-          name: football-${{ inputs.version }}
+          name: football-${{ env.RELEASE_VERSION }}
           path: dist
       - name: Write credentials with verified host key
         shell: bash
@@ -101,9 +105,6 @@ jobs:
           chmod 600 "$RUNNER_TEMP/football-files-key" "$RUNNER_TEMP/football-files-known-hosts"
       - name: Upload, verify public SHA256, and activate channel
         env:
-          RELEASE_VERSION: ${{ inputs.version }}
-          RELEASE_CHANNEL: ${{ inputs.channel }}
-          RELEASE_OPERATION: ${{ inputs.operation }}
           FILES_SSH_USER: ${{ secrets.FILES_SSH_USER }}
         run: |
           python -m scripts.publish_files \
