@@ -44,6 +44,10 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - name: Validate Compose with worker enabled
+        env:
+          POSTGRES_PASSWORD: ci-only-password
+        run: docker compose config --quiet
       - name: Build non-root runtime image with native TLS library
         run: docker build -t football-runtime-smoke .
       - name: Verify Soccerdata can initialize without writing to site-packages
@@ -52,4 +56,38 @@ jobs:
             -e SOCCERDATA_DIR=/tmp/football-soccerdata \
             -e MPLCONFIGDIR=/tmp/football-matplotlib --entrypoint python \
             football-runtime-smoke -c 'from tls_requests.models.libraries import TLSLibrary; TLSLibrary.load(); import soccerdata; print("non-root TLS library ready")'
+
+  verify-postgresql-upgrade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: football_ci
+          POSTGRES_USER: football_ci
+          POSTGRES_PASSWORD: ci-only-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U football_ci -d football_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install database test dependencies
+        run: python -m pip install -e '.[web,test]'
+      - name: Verify existing results and additive V0.3 tables on PostgreSQL 16
+        env:
+          FOOTBALL_TEST_DATABASE: '1'
+          DB_HOST: 127.0.0.1
+          DB_PORT: '5432'
+          DB_NAME: football_ci
+          DB_USER: football_ci
+          DB_PASSWORD: ci-only-password
+        run: PYTHONPATH=src python -m unittest discover -s tests -p 'test_postgres_integration.py' -v
 

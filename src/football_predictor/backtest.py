@@ -82,6 +82,7 @@ def walk_forward(
     *,
     min_training_matches: int = 100,
     max_goals: int = 15,
+    evaluate_from: date | None = None,
 ) -> BacktestReport:
     """Predict each date using only matches strictly before that date.
 
@@ -105,6 +106,9 @@ def walk_forward(
     skipped: list[str] = []
     for day in sorted(grouped):
         fixtures = sorted(grouped[day], key=lambda m: (m.source, m.source_id))
+        if evaluate_from is not None and day < evaluate_from:
+            historical.extend(fixtures)
+            continue
         if len(historical) < min_training_matches:
             skipped.extend(f"{day}: insufficient history: {m.source_id}" for m in fixtures)
             historical.extend(fixtures)

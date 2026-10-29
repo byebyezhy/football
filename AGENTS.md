@@ -10,7 +10,7 @@
 2. 阅读本文件，以及 `README.md`、`docs/ARCHITECTURE_V1.md`、`docs/DATA_SOURCES.md`、`docs/DEPLOY_VPS.md`；以**当前代码和实际 CI/服务状态**为准，旧文档可能仍写“手工发布”。
 3. 读取 [当前测试发布指针](https://files.shenqianqian.com/football/channels/test.json)，从中确认实际版本、commit、tarball URL、SHA256；不要把本文的历史版本当成最新版本。
 4. 检查 [GitHub Actions](https://github.com/byebyezhy/football/actions) 和最新 PR/commit，确认测试及发布任务真实成功后再推进下一阶段。
-5. **2026-10-29 已独立核实** `https://fb.linmeng.ai/api/status` 返回 `status: ready`、`matches: 380`、`latest_match_date: 2025-05-25`。用户已升级到 v0.2.6，Soccerdata 成功读取英超 2024–25 全部 380 场、无无效行，并完成数据库导入。用户反馈球名为英文难以理解；近期优先实现**网站中文显示、内部仍保留源英文标识**。
+5. **2026-10-29 已独立核实** `https://fb.linmeng.ai/api/status` 返回 `status: ready`、`matches: 380`、`latest_match_date: 2025-05-25`。用户已升级到 v0.2.7、确认中文球队显示正常；英超 2024–25 共 380 场已入库。用户明确批准开始 **V0.3 多赛季自动采集 + 真实回测**，由助手做代码及 files 发布，用户自行在 VPS 安装和验收。
 6. 默认使用中文与用户交流，主动推进工作。**用户已经明确授权助手直接完成 GitHub 代码提交、创建 PR、检查 CI、合并 PR、触发/重跑构建与 files 测试发布，不要再逐项要求用户去 GitHub 点击。VPS 登录、安装、更新、回滚由用户亲自执行，助手只负责给出经核对的命令和诊断。**
 
 ## 1. 产品目标与不变的架构原则
@@ -23,7 +23,7 @@
 - 长期产品方向可发展为“有依据、能复盘”的中文足球分析台：今日赛程、单场分析、多模型对比、预测快照、赛后复盘、校准与数据源健康状况。目前**并未全部实现**。
 - 不能凭模拟数据或未经验证的模型输出宣称预测准确率；要用真实授权历史数据比较 Brier、log loss、RPS、比分命中率、校准。
 
-## 2. 当前代码与功能（V0.2 基础版）
+## 2. 当前代码与功能（V0.3 开发版；未部署前不算线上功能）
 
 | 组件 | 位置 / 当前能力 |
 | --- | --- |
@@ -32,14 +32,16 @@
 | 模型 | `src/football_predictor/models/penaltyblog_adapter.py`；Poisson / Dixon–Coles，按截止时间训练 |
 | 数据契约/CSV | `domain.py`、`results_io.py`；标准化赛果及受控文件写入 |
 | 回测 | `backtest.py`；按比赛日期 walk-forward，Brier、RPS、log loss、精确比分指标 |
-| 数据库 | `storage.py`；PostgreSQL 最小赛果表、来源字段、幂等导入；尚无完整迁移/多源冲突系统 |
+| 数据库 | `storage.py`；原有 `match_results` 表不变、幂等赛果导入；新增 `source_sync_runs` 与 `model_backtest_reports` 两张仅追加的状态/报告表 |
 | 预测服务 | `forecast_service.py`；按数据版本/日期缓存拟合，避免明显的未来赛果泄漏 |
 | Web/API | `web/app.py`、`web/static/index.html`；联赛、球队、日期、模型选择，显示 1X2 和 Top 5 比分 |
 | 球队中文显示 | `web/team_names.py`；按联赛维护中文标签，API 增量返回显示名映射，前端使用中文优先/括号保留英文，预测参数和原有数据库球队标识不变 |
+| 自动采集 | `sync_pipeline.py`、`worker.py`；后台单独容器，英超近五个完整赛季+本赛季动态计算；当前季每日检查、旧季月度复查，单季失败不删除旧数据 |
+| 实证回测 | `backtest_service.py`、`backtest.py`；最近 48 个有比赛日的 Poisson/Dixon-Coles walk-forward，后台保存指标，前端只读预计算报告 |
 | VPS 部署 | `Dockerfile`、`compose.yaml`、`deploy/Caddyfile`；FastAPI + PostgreSQL + Caddy HTTPS |
 | 测试 | `tests/`；离线契约、回测、API、存储、构建/发布工具测试 |
 
-主要 API：`/healthz`、`/api/status`、`/api/competitions`、`/api/teams`、`/api/predict`。无真实赛果时网站应显示**空状态**，不能伪造预测。初版 API 对历史赛果即时拟合模型，尚无未来赛程自动发现或完整的生产缓存/调度体系。
+主要 API：`/healthz`、`/api/status`、`/api/competitions`、`/api/teams`、`/api/predict`，V0.3 新增只读 `/api/sources`、`/api/backtests`。无真实赛果/无回测报告时网页必须显示**空状态**，不能伪造预测或准确率。网站仍无未来赛程自动发现，自动调度只作用于已结束历史赛果。
 
 常见 CLI：
 
@@ -60,6 +62,10 @@ football backtest-csv --csv data/raw/epl-2024-25.csv \
 
 # VPS 数据库导入（以已存在且获许可的 CSV 文件为前提）
 football import-results --csv data/raw/epl-2024-25.csv
+
+# V0.3 在后台 worker 自动运行；下面只是管理员按需诊断/复算
+football sync-results --league 'ENG-Premier League' --as-of 2026-10-29
+football backtest-db --competition 'ENG-Premier League' --as-of 2026-10-29 --evaluation-dates 48
 ```
 
 CSV 列：`competition,season,date,home_team,away_team,home_goals,away_goals`；可选 `source_id`。访问 Football-Data.co.uk 曾受开发环境 DNS/网络限制，**不能据此假定 VPS 已经成功采集真实赛果**。
@@ -77,7 +83,7 @@ CSV 列：`competition,season,date,home_team,away_team,home_goals,away_goals`；
 仓库 Actions 工作流：
 
 - `.github/workflows/foundation-checks.yml`：PR 及 `main` 的基础测试。
-- `.github/workflows/publish-files.yml`：**每次推送/合并到 `main`，自动测试、打包唯一版本 `v0.2.<GitHub workflow run_number>`，用 SSH 上传并在 HTTPS SHA256 复核后更新 `test` 渠道**。
+- `.github/workflows/publish-files.yml`：**每次推送/合并到 `main`，自动测试、打包唯一版本（V0.3 起为 `v0.3.<GitHub workflow run_number>`），用 SSH 上传并在 HTTPS SHA256 复核后更新 `test` 渠道**。
 - 仍支持 `workflow_dispatch` 的 `build-only`、`publish-new`、`promote-existing`。`stable` **不能自动跟随 main**，需要匹配版本的 Git tag，并有明确的发布决策。
 - `scripts/build_release.py` 只打包白名单源码、文档、部署文件，拒绝私人配置/原始数据；`scripts/publish_files.py` 执行不可变版本目录创建、校验、原子渠道切换。
 - 自动发布错误会直接使 GitHub job 失败；不得仅凭包构建成功就报告 files 发布成功。已有失败任务优先使用 GitHub 接口重跑失败 job。
@@ -107,7 +113,7 @@ files SSH 服务器历史配置是全局 `PubkeyAuthentication no`，`Match User
 | VPS SSH | `root@45.12.52.34:22`；仅用户自己登录，不授予 GitHub Actions / 助手远程登录凭据 |
 | 网站 | `https://fb.linmeng.ai` |
 | 推荐部署路径 | `/opt/football/releases/football-<version>`，原始下载 `/opt/football/downloads/<version>` |
-| 容器 | `api`（FastAPI）、`db`（PostgreSQL 16）、`caddy`（80/443 HTTPS） |
+| 容器 | 旧版：`api`、`db`、`caddy`；V0.3 另加非 root `worker`，实际启动需用户在 VPS 升级 |
 | 内网服务 | PostgreSQL 5432、API 8000 不直接暴露公网 |
 | 密码 | VPS 上创建本地 `.env`，填写强随机 `POSTGRES_PASSWORD`，**不上传 GitHub/files** |
 | 健康检查 | `https://fb.linmeng.ai/healthz` 和 `/api/status` |
@@ -118,9 +124,9 @@ files SSH 服务器历史配置是全局 `PubkeyAuthentication no`，`Match User
 
 ## 6. 未完成、不得误报为完成的事项
 
-1. **第一优先：提升网站中文可用性。** 当前英超球队在 Soccerdata/数据库中为英文，如 `Man City`、`Nott'm Forest`。用户明确需要中文球队名称。必须保留原始英文 ID 与预测 API 请求参数，新增按联赛的中文显示名映射；不能直接重写 380 条赛果的球队字段。完善测试，PR/CI 合并后发布到 files，由用户自行升级 VPS。
-2. **第二优先：真实赛果扩展。** 已有一个英超赛季真实数据；接下来获取多赛季并加入自动增量采集、数据源容错和跨赛季球队规范化，先用已有 380 场验证第一场线上预测。
-3. **第三优先：可信回测。** 使用多个完整赛季做 walk-forward，公开真实样本量、Brier/log loss/RPS/精确比分命中与简单基线对照，避免时间穿越。
+1. **第一优先：完成 V0.3 交付与 VPS 验收。** Python/数据库/worker/回测页面修改后，核对 PR 测试和可运行 Docker 构建，合并并核对 files 最新包；由用户按手工流程升级 VPS。确认 worker 实际导入多个真实赛季、`/api/sources` 含成功记录、`/api/backtests` 返回真实样本量和两模型指标，不能只看前端空模板。首次回测耗时长是可能的，不要求助手远程登录 VPS。
+2. **第二优先：回测可靠性。** 校验两模型样本集是否完全相同，与简单基线对照，明确训练窗口/球队更名等局限，观察定时任务失败恢复。
+3. **第三优先：真实赛果扩展。** 需要继续增加独立来源、球队 ID 映射、跨源冲突/校正策略，未来加自动赛程/xG/赔率必须实现赛前数据发布时间快照。
 4. **之后：数据源扩展。** 加 fixtures、xG、赔率等插件、球队 ID 映射、源冲突处理、可审计的采集时间戳、限速缓存、定时任务和错误告警。
 5. **之后：工程增强。** 数据库迁移、历史预测快照、模型版本持久化、依赖锁定、API 鉴权/限流与监控；VPS 部署仍须遵守“用户手工执行”约定。
 6. **文档同步：** `README.md`、`docs/RELEASES.md`、`docs/IMPLEMENTATION_STATUS.md` 部分文字仍描述“人工审核/手动发布/服务器待验证”。它们是旧阶段记录，应在适当 PR 中更新；当前工作流代码与本文件更新的历史事实优先。
@@ -141,11 +147,11 @@ files SSH 服务器历史配置是全局 `PubkeyAuthentication no`，`Match User
 
 ## 8. 给新对话的简短状态摘要
 
-**当前已完成：** 数据源插件和 Poisson/Dixon–Coles 预测骨架、CSV 导入/回测、FastAPI 网站代码、PostgreSQL/Caddy Docker 部署包、GitHub 自动 CI/PR 合并流程、GitHub → files 测试版自动发布链路；`v0.2.6` 修复 TLS 权限，用户已导入 380 场英超赛果，公网 API 验证返回正常。
+**当前已完成：** 数据源插件和 Poisson/Dixon–Coles 预测骨架、CSV 导入/回测、FastAPI 网站代码、PostgreSQL/Caddy Docker 部署包、GitHub 自动 CI/PR 合并流程、GitHub → files 自动测试版发布；v0.2.7 的中文球队显示用户确认正常，公网 API 验证旧版 380 场赛果正常。
 
-**当前未完成：** 用户侧部署中文版前端、实测第一场线上比分预测、多个赛季的可靠回测和实证精度报告，以及后续扩展采集源/调度/正式版发布。
+**当前未完成：** V0.3 后台采集/回测的真实 VPS 运行验证、实测第一场线上比分预测、多赛季真实回测可信报告及后续多个异构来源、未来赛程等。
 
-**现在应做：** 完成按联赛的中文显示标签、相关 API/前端测试并发布新源码包到 files；然后给用户 VPS 手工升级命令，检查界面“阿森纳/曼城/曼联”等中文显示且预测英文参数不变。下一阶段再增加多赛季数据和回测。绝不创建 VPS 自动部署工作流。
+**现在应做：** 完成 V0.3 测试与安全审核、GitHub PR/CI/合并、files 可下载包与 SHA256 验证；给用户升级命令，由用户在 VPS 验证 `worker`、多赛季入库与 `/api/backtests`。**在真实运行前，不宣称已取得准确率指标。** 绝不创建 VPS 自动部署工作流。
 
 ---
 

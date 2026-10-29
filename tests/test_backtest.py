@@ -55,6 +55,14 @@ class BacktestTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             report.summary()
 
+    def test_evaluation_window_keeps_prior_games_in_training(self):
+        log = []
+        report = walk_forward(self.matches, lambda: SpyModel(log),
+                              min_training_matches=2, evaluate_from=date(2024, 8, 3))
+        self.assertEqual(len(report.evaluated), 1)
+        self.assertEqual(report.evaluated[0].training_matches, 4)
+        self.assertEqual(log[0][0], date(2024, 8, 3))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -44,6 +44,8 @@ class StorageTests(unittest.TestCase):
         seen = []
         repo = PostgresRepository(connect=lambda: FakeConnection(seen))
         repo.ensure_schema()
+        self.assertTrue(any("CREATE TABLE IF NOT EXISTS source_sync_runs" in sql for sql, _ in seen))
+        self.assertTrue(any("CREATE TABLE IF NOT EXISTS model_backtest_reports" in sql for sql, _ in seen))
         fixture = MatchResult("EPL", "2024-25", date(2024, 8, 1),
                               "Arsenal", "Chelsea", 2, 1, "soccerdata", "fixture-id")
         inserted = repo.import_matches([fixture])

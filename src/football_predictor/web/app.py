@@ -27,7 +27,7 @@ def create_app(repository=None, *, model_factory=None) -> FastAPI:
         repo.ensure_schema()
         yield
 
-    app = FastAPI(title="凌盟足球预测", version="0.2.0", lifespan=lifespan,
+    app = FastAPI(title="凌盟足球预测", version="0.3.0", lifespan=lifespan,
                   docs_url="/api/docs", redoc_url=None,
                   openapi_url="/api/openapi.json")
 
@@ -61,6 +61,20 @@ def create_app(repository=None, *, model_factory=None) -> FastAPI:
             names = repo.teams(competition)
             return {"competition": competition, "teams": names,
                     "team_names_zh": team_labels(competition, names)}
+        except Exception as exc:
+            raise HTTPException(status_code=503, detail="数据库暂不可用") from exc
+
+    @app.get("/api/sources", tags=["data"])
+    def source_status(competition: str = Query(min_length=1, max_length=80)):
+        try:
+            return {"competition": competition, "sources": repo.source_sync_status(competition)}
+        except Exception as exc:
+            raise HTTPException(status_code=503, detail="数据库暂不可用") from exc
+
+    @app.get("/api/backtests", tags=["evaluation"])
+    def backtests(competition: str = Query(min_length=1, max_length=80)):
+        try:
+            return {"competition": competition, "reports": repo.recent_backtests(competition)}
         except Exception as exc:
             raise HTTPException(status_code=503, detail="数据库暂不可用") from exc
 

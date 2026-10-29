@@ -1,5 +1,17 @@
 # V0.2 实现进度
 
+> **注意：以下 V0.2 历史记录并非当前实时状态。** 截至 2026-10-29，用户已在 VPS 成功部署 V0.2.7、导入真实英超 2024–25 赛季 380 场比赛，并确认中文队名显示正常。新开发目标是 **V0.3 后台自动多赛季采集 + 真实历史回测面板**。以仓库根目录的 `AGENTS.md`、本文件上方最新附注、GitHub Actions 和 files `test.json` 为准。
+
+## V0.3 本轮新增（需在 VPS 真正运行后验收）
+
+- 新增非 root `worker` Compose 后台容器：动态计算近五个完整赛季及当前赛季的英超赛季代码，成功同步按当前季 1 天、历史季 30 天间隔复查。
+- 增量结果直接进入原有 PostgreSQL `match_results`，不覆盖已有赛果；新增来源运行记录表 `source_sync_runs` 与回测概要表 `model_backtest_reports`。
+- 新增 `football sync-results`、`football backtest-db`，基于真实已入库赛果进行日期分组 walk-forward 回测；默认评估最近 48 个有比赛的日期。
+- 公网新增只读 `/api/sources` 与 `/api/backtests`，网页展示 Poisson / Dixon–Coles 历史指标；回测计算不在 HTTP 请求线程中运行。
+- 本轮代码与自动化单测不能代替 VPS 上真实源采集、后台性能和回测结果验证；若抓取失败，保留旧比赛和回测空状态。
+
+---
+
 日期：2026-10-29；包含 web-vps-foundation 分支的变更。
 
 ## 当前 PR 已提供
