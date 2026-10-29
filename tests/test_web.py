@@ -95,6 +95,9 @@ class WebContractTests(unittest.TestCase):
         self.assertEqual(endpoints["/healthz"]()["status"], "ok")
         self.assertEqual(endpoints["/api/status"]()["matches"], 65)
         self.assertEqual(endpoints["/api/competitions"]()["competitions"], ["EPL"])
+        self.assertEqual(endpoints["/api/competitions"]()["competition_names_zh"], {"EPL": "EPL"})
+        self.assertEqual(endpoints["/api/teams"](competition="EPL")["team_names_zh"],
+                         {"Arsenal": "Arsenal", "Chelsea": "Chelsea"})
         prediction = endpoints["/api/predict"](
             competition="EPL", home="Arsenal", away="Chelsea",
             as_of=date(2025, 1, 1), model="poisson",
@@ -128,7 +131,9 @@ class WebHTTPTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await self.client.get("/healthz")).json()["status"], "ok")
         self.assertEqual((await self.client.get("/api/status")).json()["matches"], 65)
         self.assertEqual((await self.client.get("/api/competitions")).json()["competitions"], ["EPL"])
-        self.assertEqual((await self.client.get("/api/teams?competition=EPL")).json()["teams"], ["Arsenal", "Chelsea"])
+        team_data = (await self.client.get("/api/teams?competition=EPL")).json()
+        self.assertEqual(team_data["teams"], ["Arsenal", "Chelsea"])
+        self.assertEqual(team_data["team_names_zh"], {"Arsenal": "Arsenal", "Chelsea": "Chelsea"})
 
     async def test_predict_and_bad_input(self):
         params = {"competition": "EPL", "home": "Arsenal", "away": "Chelsea", "as_of": "2025-01-01"}
