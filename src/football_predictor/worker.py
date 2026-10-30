@@ -16,6 +16,9 @@ from football_predictor.sync_pipeline import sync_competition
 LOGGER = logging.getLogger("football.worker")
 # The current production scheduler uses UTC+8; avoid a tzdata dependency in slim images.
 LOCAL_ZONE = timezone(timedelta(hours=8))
+DEFAULT_LEAGUES = (
+    "ENG-Premier League,ESP-La Liga,GER-Bundesliga,ITA-Serie A,FRA-Ligue 1"
+)
 
 
 def run_cycle(repository, *, now: datetime, competitions: tuple[str, ...],
@@ -24,7 +27,11 @@ def run_cycle(repository, *, now: datetime, competitions: tuple[str, ...],
     as_of = now.astimezone(LOCAL_ZONE).date()
     repository.ensure_schema()
     for competition in competitions:
-        outcomes = sync_competition(repository, competition, as_of=as_of, now=now)
+        try:
+            outcomes = sync_competition(repository, competition, as_of=as_of, now=now)
+        except Exception:
+            LOGGER.exception("Sync failed for %s; continuing with other leagues", competition)
+            continue
         for outcome in outcomes:
             LOGGER.info("source=%s season=%s state=%s fetched=%d imported=%d invalid=%d",
                         competition, outcome.season, outcome.status,
@@ -32,7 +39,10 @@ def run_cycle(repository, *, now: datetime, competitions: tuple[str, ...],
 
         last = repository.last_backtest_at(competition)
         existing = {item["model"] for item in repository.recent_backtests(competition)}
-        if last is not None and now - last < timedelta(days=7) and \
+        # Recalculate when newly imported fixtures change the training set;
+        # otherwise keep the weekly cadence to limit model fitting costs.
+        imported_new_matches = any(item.inserted > 0 for item in outcomes)
+        if not imported_new_matches and last is not None and now - last < timedelta(days=7) and \
                 {"poisson", "dixon_coles"}.issubset(existing):
             continue
         try:
@@ -57,7 +67,7 @@ def main() -> int:
     if not 1 <= dates <= 365:
         parser.error("FOOTBALL_BACKTEST_DATES must be 1..365")
     competitions = tuple(item.strip() for item in
-                         os.environ.get("FOOTBALL_SYNC_LEAGUES", "ENG-Premier League").split(",")
+                         os.environ.get("FOOTBALL_SYNC_LEAGUES", DEFAULT_LEAGUES).split(",")
                          if item.strip())
     if not competitions:
         parser.error("At least one competition is required")
