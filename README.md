@@ -18,17 +18,19 @@
 - [当前实现与下一阶段任务](docs/IMPLEMENTATION_STATUS.md)
 - [VPS 部署与域名配置](docs/DEPLOY_VPS.md)
 
-## V0.3 多赛季自动采集与实证回测
+## V0.3 欧洲五大联赛自动采集与实证回测
 
-- 网站 `https://fb.linmeng.ai`，用户在 Ubuntu 24.04 VPS 自行部署；截至 2026-10-29 已验证一季英超 380 场赛果入库，中文球队展示正常。
+- 网站 `https://fb.linmeng.ai`，用户在 Ubuntu 24.04 VPS 自行部署；截至 2026-10-29，用户已用 v0.3.9 验证英超六季共 **1980 场**真实赛果入库、后台双模型回测完成。
 - 保留 V0.2 的 FastAPI 比分概率预测、Poisson/Dixon–Coles、PostgreSQL 和 Caddy；新增 `/api/sources`、`/api/backtests` 只读接口及回测网页。
-- `worker` 是独立、非 root 的后台容器：启动后补充英超近五个完整赛季与当前赛季，按日检查当前赛季、按月复查历史赛季。失败隔离且不会删除原有比赛。
+- `worker` 是独立、非 root 的后台容器：默认采集**英超、西甲、德甲、意甲、法甲**各近五个完整赛季与当前赛季；按日检查当前赛季、按月复查历史赛季。一个联赛失败不会阻止其他联赛，失败不会删除原有比赛。
+- 四个新增联赛的采集标识已从 Soccerdata 官方 `MatchHistory` 映射核对；已检查最近六季原始 CSV 中共 109 种球队名并补齐中文显示。球队源 ID 仍保持英文，避免改变既有数据库或预测模型输入。
+- 可在 VPS 的私有 `.env` 中用 `FOOTBALL_SYNC_LEAGUES` 自定义启用联赛，默认是上述五大联赛；网站联赛下拉框自动读取数据库中实际已经入库的联赛，不伪造未采集的联赛。
 - 已有球队/比赛主键不变；自动导入与管理员 CLI 共享幂等入库机制，保存采集结果/失败状态供运维查看。
-- 以真实历史赛果进行滚动 walk-forward 回测，默认评估最近 48 个有比赛的日期；Poisson 与 Dixon–Coles 报告保存到 PostgreSQL，页面仅读取预先计算的结果，不在公网请求中训练模型。
+- 以真实历史赛果进行滚动 walk-forward 回测，默认评估最近 48 个有比赛的日期；Poisson 与 Dixon–Coles 报告保存到 PostgreSQL，页面仅读取预先计算的结果，不在公网请求中训练模型。**新增比赛入库时立即重新回测该联赛**，无新增比赛则最多每周重算一次。
 - 数据库新增两张**仅追加**表：`source_sync_runs`、`model_backtest_reports`。升级保留既有 `match_results`、数据库卷和本地 `.env`。
 - 仍无未来赛程、xG、赔率、真实赛前快照，不能把回测指标称为未来比赛命中率保证。
 
-V0.3 首次自动采集和回测需在用户部署后通过 VPS 日志与 `/api/backtests` **实测验收**；发布代码成功不代表后台任务已跑完。详见 [Ubuntu VPS 手工升级与验证](docs/DEPLOY_VPS.md)。
+四个新增联赛的首次自动采集和回测仍需用户升级 VPS 后通过日志及 `/api/backtests` **实测验收**；发布代码成功不代表后台任务已跑完。详见 [Ubuntu VPS 手工升级与验证](docs/DEPLOY_VPS.md)。
 
 ## 代码骨架（V1.0 开发中）
 
@@ -84,7 +86,7 @@ football predict-csv --csv matches.csv --home Arsenal --away Chelsea --as-of 202
 ```
 
 CSV 列：`competition,season,date,home_team,away_team,home_goals,away_goals`，可选 `source_id`。
-未在真实多赛季数据上完成验收前，不能宣称任何准确率指标。
+英超的初次真实回测已有 140 场有效样本，但不能据此推断未来盈利或模型稳定优势；四个新增联赛的真实报告以 VPS 升级后产生的数据为准。
 
 ## 开发与发布约定
 
@@ -94,4 +96,4 @@ CSV 列：`competition,season,date,home_team,away_team,home_goals,away_goals`，
 - 不向发行服务器上传数据库、凭据、`.env`、密钥或其他私有数据。
 - 发布版本可在 `test` 与 `stable` 渠道间进行经过哈希校验的切换。VPS 由用户亲自 SSH 安装/更新，绝不将 root 私钥交给 GitHub，详见 [发布操作指南](docs/RELEASES.md)。
 
-> 项目状态：V0.3 自动采集与回测代码待 VPS 真实运行验证；网站 V0.2.7 已成功上线并导入 380 场英超比赛。
+> 项目状态：v0.3.9 已在 VPS 稳定采集英超六季 1980 场；新增西甲、德甲、意甲、法甲的代码需经 CI/files 发布、用户手工升级 VPS 后验收。
