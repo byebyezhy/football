@@ -175,7 +175,7 @@ docker compose ps
 
 V0.3 在原有 `api`、`db`、`caddy` 基础上增加独立的 `worker` 容器。**用户只需要按第 7 节部署新版；worker 启动后自动执行，不再需要手动逐季 CSV 导入。** 自动采集和模型计算只在 VPS 执行，GitHub 和 files 不保存原始比赛数据。
 
-首次启动会尝试拉取英超近五个完整赛季及当前赛季，共六个赛季（以当前年份和 7 月赛季边界动态计算）。已存在的 380 场不会被覆盖或删除。旧赛季默认 30 天复查一次，当前赛季每天复查一次；后台最长约 7 天更新一次回测报告。第一次模型训练可能需要数分钟甚至更久，请不要因此重启数据库或删除卷。
+默认配置支持英超、西甲、德甲、意甲、法甲，每个联赛拉取近五个完整赛季及当前赛季，共最多 30 个赛季批次（以当前年份和 7 月赛季边界动态计算）。2026-10-29 用户已验证旧版英超 1980 场；新增联赛不会覆盖或删除它们。旧赛季默认 30 天复查一次，当前赛季每天复查一次；**如果有新比赛入库，会重新计算相应联赛的回测报告**，否则每 7 天复查一次。初次五大联赛抓取与模型训练可能持续数分钟甚至更久，请不要因此重启数据库或删除卷。
 
 在**新版发布目录**检查：
 
@@ -185,9 +185,12 @@ docker compose logs --tail=120 worker
 curl -fsS 'https://fb.linmeng.ai/api/status'
 curl -fsS 'https://fb.linmeng.ai/api/sources?competition=ENG-Premier%20League'
 curl -fsS 'https://fb.linmeng.ai/api/backtests?competition=ENG-Premier%20League'
+curl -fsS 'https://fb.linmeng.ai/api/competitions'
+curl -fsS 'https://fb.linmeng.ai/api/sources?competition=ESP-La%20Liga'
+curl -fsS 'https://fb.linmeng.ai/api/backtests?competition=GER-Bundesliga'
 ```
 
-- `/api/status` 的 `matches` 应在采集完成后超过已有 380 场；若部分源访问失败，原赛果会保留。
+- `/api/status` 的 `matches` 应在新联赛成功采集后超过已有的英超 1980 场；若部分源访问失败，原赛果会保留。`/api/competitions` 应逐渐出现五个已入库联赛。
 - `/api/sources` 显示各赛季最新抓取状态；其中 `status: error` 说明该赛季失败，查看 `worker` 日志定位，不代表整站故障。
 - `/api/backtests` 只返回已保存的 Poisson / Dixon–Coles 真实回测概要。**如果刚启动返回空数组，表示后台尚未算完或回测失败，绝不能当作真实成绩为零。**
 - 前端新增“真实历史回测”区块，只读取后台结果；公网请求不会现场运行耗时的模型回测。
@@ -199,7 +202,13 @@ curl -fsS 'https://fb.linmeng.ai/api/backtests?competition=ENG-Premier%20League'
 docker compose exec worker python -m football_predictor.worker --once
 ```
 
-如想限制更新频率，可在 VPS 私有 `/opt/football/shared/.env` 中设置 `FOOTBALL_SYNC_INTERVAL_HOURS`（默认 24，范围 1–168）和 `FOOTBALL_BACKTEST_DATES`（默认 48，范围 1–365）；修改后由用户重建/重启 worker 生效。当前 V0.3 只自动采集历史赛果，**不代表已经有未来赛程、赔率、xG 或可核实的实战收益**。
+如想选择联赛，可在 VPS 私有 `/opt/football/shared/.env` 中配置：
+
+```ini
+FOOTBALL_SYNC_LEAGUES=ENG-Premier League,ESP-La Liga,GER-Bundesliga,ITA-Serie A,FRA-Ligue 1
+```
+
+不设置这个变量时，新版 Compose 默认启用五大联赛。**如果既有 `.env` 已显式设置只含英超的 `FOOTBALL_SYNC_LEAGUES`，必须由用户将其改为上述列表**，否则会覆盖新版默认值。修改后由用户执行 `docker compose up -d --force-recreate worker` 让配置生效。仍可设置 `FOOTBALL_SYNC_INTERVAL_HOURS`（默认 24，范围 1–168）和 `FOOTBALL_BACKTEST_DATES`（默认 48，范围 1–365），本版只自动采集历史赛果，**不代表已有未来赛程、赔率、xG 或可核实的实战收益**。
 
 ## 9. 安全边界与后续开发
 
